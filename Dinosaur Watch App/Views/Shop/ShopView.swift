@@ -30,8 +30,18 @@ struct ShopView: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            // Header - compact
+            // Header with title
             HStack {
+                HStack(spacing: 4) {
+                    Image(systemName: "cart.fill")
+                        .font(.system(size: 10))
+                    Text("Marketplace")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .foregroundColor(.white)
+
+                Spacer()
+
                 HStack(spacing: 2) {
                     Image(systemName: "dollarsign.circle.fill")
                         .font(.system(size: 10))
@@ -39,8 +49,6 @@ struct ShopView: View {
                         .font(.system(size: 10, weight: .bold))
                 }
                 .foregroundColor(.yellow)
-
-                Spacer()
 
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
@@ -165,73 +173,75 @@ struct ShopView: View {
         let isOwned = playerDataManager.playerData.owns(skin)
         let isEquipped = playerDataManager.playerData.equippedDinosaurSkin == skin.rawValue
         let canPurchase = playerDataManager.playerData.canPurchase(skin)
-        let hasCoins = playerDataManager.playerData.coins >= skin.coinCost
         let hasLevel = playerDataManager.playerData.playerLevel >= skin.requiredPlayerLevel
         let hasPrevious = skin.previousSkin.map { playerDataManager.playerData.owns($0) } ?? true
 
-        return HStack(spacing: 8) {
+        return HStack(spacing: 4) {
             // Skin name
             Text(skin.displayName)
                 .font(.system(size: 11, weight: .bold))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(1)
 
-            if isOwned {
-                if isEquipped {
-                    Text("EQUIPPED")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(.green)
-                } else {
-                    Button("Equip") {
-                        playerDataManager.equip(skin)
-                    }
-                    .font(.system(size: 10, weight: .medium))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(4)
-                }
-            } else {
-                // Price and buy button inline
-                HStack(spacing: 4) {
-                    // Show unmet requirements as small icons
+            // Fixed-width action area
+            HStack(spacing: 2) {
+                if !isOwned {
                     if !hasLevel {
                         HStack(spacing: 1) {
                             Image(systemName: "star.fill")
-                                .font(.system(size: 8))
+                                .font(.system(size: 7))
                             Text("\(skin.requiredPlayerLevel)")
-                                .font(.system(size: 8))
+                                .font(.system(size: 7))
                         }
                         .foregroundColor(.red)
                     }
                     if !hasPrevious && skin.evolutionLevel > 1 {
                         Image(systemName: "lock.fill")
-                            .font(.system(size: 8))
+                            .font(.system(size: 7))
                             .foregroundColor(.red)
                     }
-
-                    Button(action: {
-                        _ = playerDataManager.purchase(skin)
-                    }) {
-                        HStack(spacing: 2) {
-                            Image(systemName: "dollarsign.circle.fill")
-                                .font(.system(size: 10))
-                            Text("\(skin.coinCost)")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(canPurchase ? Color.green : Color.gray.opacity(0.5))
-                        .foregroundColor(canPurchase ? .white : .gray)
-                        .cornerRadius(4)
-                    }
-                    .disabled(!canPurchase)
                 }
+
+                Button(action: {
+                    if isOwned && !isEquipped {
+                        playerDataManager.equip(skin)
+                    } else if !isOwned {
+                        _ = playerDataManager.purchase(skin)
+                    }
+                }) {
+                    Group {
+                        if isEquipped {
+                            Text("EQUIPPED")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(.green)
+                        } else if isOwned {
+                            Text("Equip")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.white)
+                        } else {
+                            HStack(spacing: 1) {
+                                Image(systemName: "dollarsign.circle.fill")
+                                    .font(.system(size: 8))
+                                Text("\(skin.coinCost)")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                            .foregroundColor(canPurchase ? .white : .gray)
+                        }
+                    }
+                    .frame(width: 52, height: 18)
+                    .background(isEquipped ? Color.clear : (isOwned ? Color.blue : (canPurchase ? Color.green : Color.gray.opacity(0.5))))
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+                .disabled(isEquipped || (!isOwned && !canPurchase))
             }
+            .frame(width: 80, alignment: .trailing)
         }
         .padding(6)
+        .frame(height: 32)
         .background(Color.gray.opacity(0.15))
         .cornerRadius(6)
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Obstacle Shop
@@ -298,66 +308,71 @@ struct ShopView: View {
         let hasLevel = playerDataManager.playerData.playerLevel >= skin.requiredPlayerLevel
         let hasPrevious = skin.previousSkin.map { playerDataManager.playerData.owns($0) } ?? true
 
-        return HStack(spacing: 8) {
+        return HStack(spacing: 4) {
             Text(skin.displayName)
                 .font(.system(size: 11, weight: .bold))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(1)
 
-            if isOwned {
-                if isEquipped {
-                    Text("EQUIPPED")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(.green)
-                } else {
-                    Button("Equip") {
-                        playerDataManager.equip(skin)
-                    }
-                    .font(.system(size: 10, weight: .medium))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(4)
-                }
-            } else {
-                HStack(spacing: 4) {
+            // Fixed-width action area
+            HStack(spacing: 2) {
+                if !isOwned {
                     if !hasLevel {
                         HStack(spacing: 1) {
                             Image(systemName: "star.fill")
-                                .font(.system(size: 8))
+                                .font(.system(size: 7))
                             Text("\(skin.requiredPlayerLevel)")
-                                .font(.system(size: 8))
+                                .font(.system(size: 7))
                         }
                         .foregroundColor(.red)
                     }
                     if !hasPrevious && skin.evolutionLevel > 1 {
                         Image(systemName: "lock.fill")
-                            .font(.system(size: 8))
+                            .font(.system(size: 7))
                             .foregroundColor(.red)
                     }
-
-                    Button(action: {
-                        _ = playerDataManager.purchase(skin)
-                    }) {
-                        HStack(spacing: 2) {
-                            Image(systemName: "dollarsign.circle.fill")
-                                .font(.system(size: 10))
-                            Text("\(skin.coinCost)")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(canPurchase ? Color.green : Color.gray.opacity(0.5))
-                        .foregroundColor(canPurchase ? .white : .gray)
-                        .cornerRadius(4)
-                    }
-                    .disabled(!canPurchase)
                 }
+
+                Button(action: {
+                    if isOwned && !isEquipped {
+                        playerDataManager.equip(skin)
+                    } else if !isOwned {
+                        _ = playerDataManager.purchase(skin)
+                    }
+                }) {
+                    Group {
+                        if isEquipped {
+                            Text("EQUIPPED")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(.green)
+                        } else if isOwned {
+                            Text("Equip")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.white)
+                        } else {
+                            HStack(spacing: 1) {
+                                Image(systemName: "dollarsign.circle.fill")
+                                    .font(.system(size: 8))
+                                Text("\(skin.coinCost)")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                            .foregroundColor(canPurchase ? .white : .gray)
+                        }
+                    }
+                    .frame(width: 52, height: 18)
+                    .background(isEquipped ? Color.clear : (isOwned ? Color.blue : (canPurchase ? Color.green : Color.gray.opacity(0.5))))
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+                .disabled(isEquipped || (!isOwned && !canPurchase))
             }
+            .frame(width: 80, alignment: .trailing)
         }
         .padding(6)
+        .frame(height: 32)
         .background(Color.gray.opacity(0.15))
         .cornerRadius(6)
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Background Shop
@@ -424,66 +439,71 @@ struct ShopView: View {
         let hasLevel = playerDataManager.playerData.playerLevel >= skin.requiredPlayerLevel
         let hasPrevious = skin.previousSkin.map { playerDataManager.playerData.owns($0) } ?? true
 
-        return HStack(spacing: 8) {
+        return HStack(spacing: 4) {
             Text(skin.displayName)
                 .font(.system(size: 11, weight: .bold))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(1)
 
-            if isOwned {
-                if isEquipped {
-                    Text("EQUIPPED")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(.green)
-                } else {
-                    Button("Equip") {
-                        playerDataManager.equip(skin)
-                    }
-                    .font(.system(size: 10, weight: .medium))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(4)
-                }
-            } else {
-                HStack(spacing: 4) {
+            // Fixed-width action area
+            HStack(spacing: 2) {
+                if !isOwned {
                     if !hasLevel {
                         HStack(spacing: 1) {
                             Image(systemName: "star.fill")
-                                .font(.system(size: 8))
+                                .font(.system(size: 7))
                             Text("\(skin.requiredPlayerLevel)")
-                                .font(.system(size: 8))
+                                .font(.system(size: 7))
                         }
                         .foregroundColor(.red)
                     }
                     if !hasPrevious && skin.evolutionLevel > 1 {
                         Image(systemName: "lock.fill")
-                            .font(.system(size: 8))
+                            .font(.system(size: 7))
                             .foregroundColor(.red)
                     }
-
-                    Button(action: {
-                        _ = playerDataManager.purchase(skin)
-                    }) {
-                        HStack(spacing: 2) {
-                            Image(systemName: "dollarsign.circle.fill")
-                                .font(.system(size: 10))
-                            Text("\(skin.coinCost)")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(canPurchase ? Color.green : Color.gray.opacity(0.5))
-                        .foregroundColor(canPurchase ? .white : .gray)
-                        .cornerRadius(4)
-                    }
-                    .disabled(!canPurchase)
                 }
+
+                Button(action: {
+                    if isOwned && !isEquipped {
+                        playerDataManager.equip(skin)
+                    } else if !isOwned {
+                        _ = playerDataManager.purchase(skin)
+                    }
+                }) {
+                    Group {
+                        if isEquipped {
+                            Text("EQUIPPED")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(.green)
+                        } else if isOwned {
+                            Text("Equip")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.white)
+                        } else {
+                            HStack(spacing: 1) {
+                                Image(systemName: "dollarsign.circle.fill")
+                                    .font(.system(size: 8))
+                                Text("\(skin.coinCost)")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                            .foregroundColor(canPurchase ? .white : .gray)
+                        }
+                    }
+                    .frame(width: 52, height: 18)
+                    .background(isEquipped ? Color.clear : (isOwned ? Color.blue : (canPurchase ? Color.green : Color.gray.opacity(0.5))))
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+                .disabled(isEquipped || (!isOwned && !canPurchase))
             }
+            .frame(width: 80, alignment: .trailing)
         }
         .padding(6)
+        .frame(height: 32)
         .background(Color.gray.opacity(0.15))
         .cornerRadius(6)
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Helper Views

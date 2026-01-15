@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xcodebuild:*)"
+      "Bash(xcodebuild:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nImprove marketplace UI with title and consistent layout\n\n- Add cart icon and \"Marketplace\" title in header\n- Fix button sizes to prevent layout jumping between selections\n- Use fixed-width action area \\(80px\\) for all detail views\n- Use fixed-size buttons \\(52x18\\) for EQUIPPED/Equip/price states\n- Fix overlap for 2-digit level requirements \\(Lv10, Lv12\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
