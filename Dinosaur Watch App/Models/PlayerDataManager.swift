@@ -36,45 +36,33 @@ class PlayerDataManager {
         }
     }
 
-    // MARK: - Equipped Skin Accessors
+    // MARK: - Equipped Accessors
 
-    var equippedDinosaurSkin: DinosaurSkin {
-        DinosaurSkin(rawValue: playerData.equippedDinosaurSkin) ?? .squaresaurus
+    var equippedKin: Kin {
+        Kin(rawValue: playerData.equippedKin) ?? .panda
     }
 
-    var equippedObstacleSkin: ObstacleSkin {
-        ObstacleSkin(rawValue: playerData.equippedObstacleSkin) ?? .cactus
-    }
-
-    var equippedBackgroundSkin: BackgroundSkin {
-        BackgroundSkin(rawValue: playerData.equippedBackgroundSkin) ?? .desertNight
+    var equippedWorld: World {
+        World(rawValue: playerData.equippedWorld) ?? .bambooGrove
     }
 
     // MARK: - Purchase Actions
 
-    func purchase(_ skin: DinosaurSkin) -> Bool {
-        playerData.purchase(skin)
+    func purchase(_ kin: Kin) -> Bool {
+        playerData.purchase(kin)
     }
 
-    func purchase(_ skin: ObstacleSkin) -> Bool {
-        playerData.purchase(skin)
-    }
-
-    func purchase(_ skin: BackgroundSkin) -> Bool {
-        playerData.purchase(skin)
+    func purchase(_ world: World) -> Bool {
+        playerData.purchase(world)
     }
 
     // MARK: - Equip Actions
 
-    func equip(_ skin: DinosaurSkin) {
-        playerData.equip(skin)
+    func equip(_ kin: Kin) {
+        playerData.equip(kin)
     }
 
-    func equip(_ skin: ObstacleSkin) {
-        playerData.equip(skin)
-    }
-
-    func equip(_ skin: BackgroundSkin) {
-        playerData.equip(skin)
+    func equip(_ world: World) {
+        playerData.equip(world)
     }
 }

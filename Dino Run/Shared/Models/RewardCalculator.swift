@@ -15,6 +15,21 @@ struct GameReward {
 struct RewardCalculator {
     static func calculate(
         score: Int,
+        isNewHighScore: Bool,
+        streak: Int,
+        isFirstGameOfDay: Bool
+    ) -> GameReward {
+        // Use the overloaded version
+        return calculateReward(
+            score: score,
+            streak: streak,
+            isNewHighScore: isNewHighScore,
+            isFirstGameOfDay: isFirstGameOfDay
+        )
+    }
+
+    static func calculate(
+        score: Int,
         streak: Int,
         isNewHighScore: Bool,
         lastDailyBonusDate: Double
@@ -23,6 +38,20 @@ struct RewardCalculator {
         let isFirstGameOfDay = !Calendar.current.isDateInToday(
             Date(timeIntervalSince1970: lastDailyBonusDate)
         )
+        return calculateReward(
+            score: score,
+            streak: streak,
+            isNewHighScore: isNewHighScore,
+            isFirstGameOfDay: isFirstGameOfDay
+        )
+    }
+
+    private static func calculateReward(
+        score: Int,
+        streak: Int,
+        isNewHighScore: Bool,
+        isFirstGameOfDay: Bool
+    ) -> GameReward {
 
         // Base calculations
         let baseCoins = score / 10

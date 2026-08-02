@@ -13,6 +13,8 @@ struct ContentView: View {
     @State private var showShop = false
     @State private var showProfile = false
     @State private var lastGameReward: GameReward?
+    @State private var runStartTime: Date?
+    @State private var runDurationSeconds: Int = 0
 
     @AppStorage("highScore") private var highScore = 0
     @AppStorage("currentStreak") private var currentStreak = 0
@@ -21,43 +23,40 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             switch gameState.phase {
+            case .launching:
+                ColdOpenView(onComplete: { gameState.phase = .ready })
             case .ready:
                 MenuView(
                     highScore: highScore,
                     streak: currentStreak,
                     playerLevel: playerDataManager.playerData.playerLevel,
                     coins: playerDataManager.playerData.coins,
+                    xpFraction: xpFraction,
                     onStart: startCountdown,
                     onShop: { showShop = true },
                     onProfile: { showProfile = true }
                 )
             case .countdown:
-                CountdownView(onComplete: startPlaying)
+                CountdownView(season: gameState.season, onComplete: startPlaying)
             case .playing:
-                GameView(
-                    gameState: gameState,
-                    dinosaurSkin: playerDataManager.equippedDinosaurSkin,
-                    obstacleSkin: playerDataManager.equippedObstacleSkin,
-                    backgroundSkin: playerDataManager.equippedBackgroundSkin
-                )
+                GameView(gameState: gameState)
             case .gameOver:
                 GameOverView(
                     score: gameState.score,
                     highScore: highScore,
                     isNewHighScore: lastGameReward?.isNewHighScore ?? false,
                     streak: currentStreak,
+                    season: gameState.season,
+                    runDurationSeconds: runDurationSeconds,
                     reward: lastGameReward,
-                    playerLevel: playerDataManager.playerData.playerLevel,
-                    coins: playerDataManager.playerData.coins,
                     onRestart: startCountdown,
                     onShop: { showShop = true },
-                    onProfile: { showProfile = true },
                     onHome: goToMenu
                 )
             }
 
             if showShop {
-                ShopView(
+                MarketView(
                     playerDataManager: playerDataManager,
                     onClose: { showShop = false }
                 )
@@ -79,11 +78,21 @@ struct ContentView: View {
 
     private func startCountdown() {
         gameState.reset()
+        gameState.world = playerDataManager.equippedWorld
+        gameState.kinShootMultiplier = playerDataManager.equippedKin.shootScoreMultiplier
+        gameState.kinEarAccent = playerDataManager.equippedKin.earAccent
         gameState.phase = .countdown
     }
 
     private func startPlaying() {
+        runStartTime = Date()
         gameState.phase = .playing
+    }
+
+    private var xpFraction: Double {
+        let data = playerDataManager.playerData
+        guard data.xpNeededForNextLevel > 0 else { return 0 }
+        return Double(data.xpInCurrentLevel) / Double(data.xpNeededForNextLevel)
     }
 
     private func goToMenu() {
@@ -92,6 +101,10 @@ struct ContentView: View {
     }
 
     private func recordGameEnd() {
+        if let runStartTime {
+            runDurationSeconds = Int(Date().timeIntervalSince(runStartTime))
+        }
+
         let isNewHighScore = gameState.score > highScore
         if isNewHighScore {
             highScore = gameState.score
@@ -101,6 +114,7 @@ struct ContentView: View {
         // Calculate and apply rewards
         let reward = RewardCalculator.calculate(
             score: gameState.score,
+            shootsCollected: gameState.shootsCollected,
             streak: currentStreak,
             isNewHighScore: isNewHighScore,
             lastDailyBonusDate: playerDataManager.playerData.lastDailyBonusDate

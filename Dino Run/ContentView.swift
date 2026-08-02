@@ -27,6 +27,9 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
+            // Debug: Red background to verify view loads
+            Color.red.ignoresSafeArea()
+
             switch gameState.phase {
             case .ready:
                 iPhoneMenuView(
@@ -129,8 +132,6 @@ struct ContentView: View {
         lastGameReward = reward
 
         // Apply rewards
-        playerDataManager.addCoins(reward.totalCoins)
-        playerDataManager.addXP(reward.totalXP)
-        playerDataManager.incrementGamesPlayed()
+        playerDataManager.applyReward(reward)
     }
 }

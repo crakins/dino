@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct DinosaurApp: App {
+struct Dino_RunApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()

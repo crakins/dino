@@ -85,6 +85,7 @@ struct ProfileView: View {
         .padding(8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
+        .ignoresSafeArea()
     }
 
     private var progressPercent: CGFloat {

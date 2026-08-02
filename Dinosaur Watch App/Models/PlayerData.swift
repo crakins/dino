@@ -5,15 +5,13 @@ struct PlayerData: Codable {
     var totalXP: Int = 0
     var gamesPlayed: Int = 0
 
-    // Owned skins
-    var ownedDinosaurSkins: Set<String> = [DinosaurSkin.squaresaurus.rawValue]
-    var ownedObstacleSkins: Set<String> = [ObstacleSkin.cactus.rawValue]
-    var ownedBackgroundSkins: Set<String> = [BackgroundSkin.desertNight.rawValue]
+    // Owned Kin & Worlds
+    var ownedKin: Set<String> = [Kin.panda.rawValue]
+    var ownedWorlds: Set<String> = [World.bambooGrove.rawValue, World.mistTerraces.rawValue]
 
-    // Equipped skins
-    var equippedDinosaurSkin: String = DinosaurSkin.squaresaurus.rawValue
-    var equippedObstacleSkin: String = ObstacleSkin.cactus.rawValue
-    var equippedBackgroundSkin: String = BackgroundSkin.desertNight.rawValue
+    // Equipped
+    var equippedKin: String = Kin.panda.rawValue
+    var equippedWorld: String = World.bambooGrove.rawValue
 
     // Daily tracking
     var lastDailyBonusDate: Double = 0
@@ -50,87 +48,58 @@ struct PlayerData: Codable {
 
     // MARK: - Ownership Checks
 
-    func owns(_ skin: DinosaurSkin) -> Bool {
-        ownedDinosaurSkins.contains(skin.rawValue)
+    func owns(_ kin: Kin) -> Bool {
+        ownedKin.contains(kin.rawValue)
     }
 
-    func owns(_ skin: ObstacleSkin) -> Bool {
-        ownedObstacleSkins.contains(skin.rawValue)
-    }
-
-    func owns(_ skin: BackgroundSkin) -> Bool {
-        ownedBackgroundSkins.contains(skin.rawValue)
+    func owns(_ world: World) -> Bool {
+        ownedWorlds.contains(world.rawValue)
     }
 
     // MARK: - Purchase Checks
 
-    func canPurchase(_ skin: DinosaurSkin) -> Bool {
-        guard !owns(skin) else { return false }
-        guard coins >= skin.coinCost else { return false }
-        guard playerLevel >= skin.requiredPlayerLevel else { return false }
-        if let previous = skin.previousSkin {
-            guard owns(previous) else { return false }
+    func canPurchase(_ kin: Kin) -> Bool {
+        guard !owns(kin) else { return false }
+        guard coins >= kin.coinCost else { return false }
+        guard playerLevel >= kin.requiredPlayerLevel else { return false }
+        if let requiredWorld = kin.requiredWorld {
+            guard owns(requiredWorld) else { return false }
         }
         return true
     }
 
-    func canPurchase(_ skin: ObstacleSkin) -> Bool {
-        guard !owns(skin) else { return false }
-        guard coins >= skin.coinCost else { return false }
-        guard playerLevel >= skin.requiredPlayerLevel else { return false }
-        if let previous = skin.previousSkin {
-            guard owns(previous) else { return false }
-        }
-        return true
-    }
-
-    func canPurchase(_ skin: BackgroundSkin) -> Bool {
-        guard !owns(skin) else { return false }
-        guard coins >= skin.coinCost else { return false }
-        guard playerLevel >= skin.requiredPlayerLevel else { return false }
-        if let previous = skin.previousSkin {
-            guard owns(previous) else { return false }
-        }
+    func canPurchase(_ world: World) -> Bool {
+        guard !owns(world) else { return false }
+        guard coins >= world.coinCost else { return false }
+        guard playerLevel >= world.requiredPlayerLevel else { return false }
         return true
     }
 
     // MARK: - Purchase Actions
 
-    mutating func purchase(_ skin: DinosaurSkin) -> Bool {
-        guard canPurchase(skin) else { return false }
-        coins -= skin.coinCost
-        ownedDinosaurSkins.insert(skin.rawValue)
+    mutating func purchase(_ kin: Kin) -> Bool {
+        guard canPurchase(kin) else { return false }
+        coins -= kin.coinCost
+        ownedKin.insert(kin.rawValue)
         return true
     }
 
-    mutating func purchase(_ skin: ObstacleSkin) -> Bool {
-        guard canPurchase(skin) else { return false }
-        coins -= skin.coinCost
-        ownedObstacleSkins.insert(skin.rawValue)
-        return true
-    }
-
-    mutating func purchase(_ skin: BackgroundSkin) -> Bool {
-        guard canPurchase(skin) else { return false }
-        coins -= skin.coinCost
-        ownedBackgroundSkins.insert(skin.rawValue)
+    mutating func purchase(_ world: World) -> Bool {
+        guard canPurchase(world) else { return false }
+        coins -= world.coinCost
+        ownedWorlds.insert(world.rawValue)
         return true
     }
 
     // MARK: - Equip Actions
 
-    mutating func equip(_ skin: DinosaurSkin) {
-        guard owns(skin) else { return }
-        equippedDinosaurSkin = skin.rawValue
+    mutating func equip(_ kin: Kin) {
+        guard owns(kin) else { return }
+        equippedKin = kin.rawValue
     }
 
-    mutating func equip(_ skin: ObstacleSkin) {
-        guard owns(skin) else { return }
-        equippedObstacleSkin = skin.rawValue
-    }
-
-    mutating func equip(_ skin: BackgroundSkin) {
-        guard owns(skin) else { return }
-        equippedBackgroundSkin = skin.rawValue
+    mutating func equip(_ world: World) {
+        guard owns(world) else { return }
+        equippedWorld = world.rawValue
     }
 }

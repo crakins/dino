@@ -1,162 +1,154 @@
 import SwiftUI
+import WatchKit
 
 struct GameOverView: View {
     let score: Int
     let highScore: Int
     let isNewHighScore: Bool
     let streak: Int
+    let season: Season
+    let runDurationSeconds: Int
     let reward: GameReward?
-    let playerLevel: Int
-    let coins: Int
     let onRestart: () -> Void
     let onShop: () -> Void
-    let onProfile: () -> Void
     let onHome: () -> Void
 
     @State private var canRestart = false
 
     var body: some View {
-        VStack(spacing: 4) {
-            // Header bar - consistent with MenuView
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Button(action: onProfile) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 12))
-                        Text("Lv\(playerLevel)")
-                            .font(.system(size: 10, weight: .bold))
-                    }
-                    .foregroundColor(.blue)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.blue.opacity(0.2))
-                    .cornerRadius(8)
-                }
-                .buttonStyle(.plain)
-
+                Text("RUN ENDED")
+                    .font(.system(size: 8, design: .monospaced))
+                    .tracking(1.3)
+                    .foregroundColor(PandaColor.white.opacity(0.4))
                 Spacer()
+                Text("\(season.displayName) · \(runDurationSeconds)s")
+                    .font(.system(size: 8, design: .monospaced))
+                    .tracking(0.8)
+                    .foregroundColor(PandaColor.white.opacity(0.4))
+            }
 
-                Button(action: onHome) {
-                    Image(systemName: "house.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
-                        .padding(5)
-                        .background(Color.gray.opacity(0.2))
-                        .cornerRadius(8)
+            HStack(alignment: .bottom, spacing: 6) {
+                Text("\(score)")
+                    .font(.system(size: 44, weight: .medium, design: .monospaced))
+                    .tracking(-1)
+                    .foregroundColor(PandaColor.white)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    if isNewHighScore {
+                        Text("NEW BEST")
+                            .font(.system(size: 7.5, weight: .heavy, design: .rounded))
+                            .tracking(0.6)
+                            .foregroundColor(PandaColor.ink)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(PandaColor.greenMint)
+                            .cornerRadius(5)
+                        Text("WAS \(highScore)")
+                            .font(.system(size: 7.5, design: .monospaced))
+                            .foregroundColor(PandaColor.white.opacity(0.42))
+                    } else {
+                        Text("BEST \(highScore)")
+                            .font(.system(size: 7.5, design: .monospaced))
+                            .foregroundColor(PandaColor.white.opacity(0.42))
+                    }
+                }
+                .padding(.bottom, 3)
+            }
+            .padding(.top, 5)
+
+            if let reward {
+                VStack(spacing: 3) {
+                    ForEach(reward.lines) { line in
+                        RewardRow(line: line)
+                    }
+                }
+                .padding(.top, 8)
+            }
+
+            Spacer(minLength: 4)
+
+            Text(streakConsequenceText)
+                .font(.system(size: 7.5, design: .monospaced))
+                .foregroundColor(PandaColor.white.opacity(0.42))
+                .lineSpacing(1.5)
+                .padding(.bottom, 5)
+
+            HStack(spacing: 5) {
+                Button(action: onRestart) {
+                    Text("Retry")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .tracking(0.3)
+                        .foregroundColor(PandaColor.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 28)
+                        .background(PandaColor.green)
+                        .cornerRadius(10)
                 }
                 .buttonStyle(.plain)
+                .disabled(!canRestart)
+                .opacity(canRestart ? 1 : 0.5)
 
-                Spacer()
-
-                Button(action: onShop) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "cart.fill")
-                            .font(.system(size: 12))
-                        Text("\(coins)")
-                            .font(.system(size: 10, weight: .bold))
-                        Image(systemName: "dollarsign.circle.fill")
-                            .font(.system(size: 8))
-                    }
-                    .foregroundColor(.yellow)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.yellow.opacity(0.2))
-                    .cornerRadius(8)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 4)
-
-            // Score display
-            Text("GAME OVER")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(.red)
-
-            Text("\(score)")
-                .font(.system(size: 28, weight: .bold, design: .monospaced))
-                .foregroundColor(.white)
-
-            if isNewHighScore {
-                Text("NEW HIGH SCORE!")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(.yellow)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.yellow.opacity(0.2))
-                    .cornerRadius(4)
-            } else {
-                Text("Best: \(highScore)")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-            }
-
-            // Rewards earned
-            if let reward = reward {
-                HStack(spacing: 12) {
-                    HStack(spacing: 2) {
-                        Image(systemName: "dollarsign.circle.fill")
-                            .foregroundColor(.yellow)
-                            .font(.system(size: 10))
-                        Text("+\(reward.totalCoins)")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.yellow)
-                    }
-
-                    HStack(spacing: 2) {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(.blue)
-                            .font(.system(size: 10))
-                        Text("+\(reward.totalXP)")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.blue)
-                    }
-                }
-
-                if reward.isFirstGameOfDay {
-                    Text("Daily Bonus!")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(.green)
-                }
-            }
-
-            HStack(spacing: 4) {
-                Image(systemName: "flame.fill")
-                    .foregroundColor(.orange)
-                    .font(.system(size: 10))
-                Text("\(streak) day streak")
-                    .font(.system(size: 10))
-                    .foregroundColor(.orange)
-            }
-
-            Spacer()
-
-            if canRestart {
-                Text("Tap to Retry")
-                    .font(.system(size: 11))
-                    .foregroundColor(.gray)
-                    .transition(.opacity)
-            } else {
-                Text(" ")
-                    .font(.system(size: 11))
+                iconButton(systemName: "house.fill", action: onHome)
+                iconButton(systemName: "cart.fill", action: onShop)
             }
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.top, 9)
+        .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if canRestart {
-                onRestart()
-            }
-        }
+        .background(PandaColor.ink)
+        .ignoresSafeArea()
         .onAppear {
             canRestart = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                withAnimation(.easeIn(duration: 0.3)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                withAnimation(.easeIn(duration: 0.2)) {
                     canRestart = true
                 }
             }
         }
+    }
+
+    private var streakConsequenceText: String {
+        if streak <= 0 {
+            return "Run again tomorrow to start a streak."
+        } else {
+            return "Run tomorrow to keep your \(streak)-day streak going."
+        }
+    }
+
+    private func iconButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12))
+                .foregroundColor(PandaColor.white.opacity(0.75))
+                .frame(width: 34, height: 28)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(PandaColor.white.opacity(0.2), lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct RewardRow: View {
+    let line: RewardLine
+
+    var body: some View {
+        HStack {
+            Text(line.label)
+                .font(.system(size: 8.5, design: .monospaced))
+                .foregroundColor(line.isHighlight ? PandaColor.green : PandaColor.white.opacity(0.65))
+            Spacer()
+            Text("+\(line.amount)")
+                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                .foregroundColor(line.isHighlight ? PandaColor.green : PandaColor.greenMint)
+        }
+        .padding(.horizontal, 7)
+        .frame(height: 17)
+        .background(line.isHighlight ? PandaColor.green.opacity(0.12) : PandaColor.inkRaised)
+        .cornerRadius(6)
     }
 }
