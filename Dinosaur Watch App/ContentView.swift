@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var playerDataManager = PlayerDataManager()
     @State private var showShop = false
     @State private var showProfile = false
+    @State private var showQuest = false
     @State private var lastGameReward: GameReward?
     @State private var runStartTime: Date?
     @State private var runDurationSeconds: Int = 0
@@ -31,9 +32,12 @@ struct ContentView: View {
                     streak: currentStreak,
                     playerLevel: playerDataManager.playerData.playerLevel,
                     coins: playerDataManager.playerData.coins,
+                    questProgress: playerDataManager.playerData.todaysQuestProgress,
+                    questTarget: PlayerData.dailyQuestTarget,
                     xpFraction: xpFraction,
                     onStart: startCountdown,
                     onShop: { showShop = true },
+                    onQuest: { showQuest = true },
                     onProfile: { showProfile = true }
                 )
             case .countdown:
@@ -58,14 +62,33 @@ struct ContentView: View {
             if showShop {
                 MarketView(
                     playerDataManager: playerDataManager,
-                    onClose: { showShop = false }
+                    onClose: {
+                        showShop = false
+                        // Market's "Home" always means the actual Menu screen — if it was
+                        // opened from Game Over, closing it should not just reveal Game Over again.
+                        goToMenu()
+                    }
                 )
             }
 
             if showProfile {
                 ProfileView(
                     playerData: playerDataManager.playerData,
+                    highScore: highScore,
+                    streak: currentStreak,
                     onClose: { showProfile = false }
+                )
+            }
+
+            if showQuest {
+                QuestView(
+                    playerData: playerDataManager.playerData,
+                    highScore: highScore,
+                    onClose: { showQuest = false },
+                    onRun: {
+                        showQuest = false
+                        startCountdown()
+                    }
                 )
             }
         }
@@ -120,6 +143,7 @@ struct ContentView: View {
             lastDailyBonusDate: playerDataManager.playerData.lastDailyBonusDate
         )
         playerDataManager.applyReward(reward)
+        playerDataManager.recordQuestRun()
         lastGameReward = reward
     }
 

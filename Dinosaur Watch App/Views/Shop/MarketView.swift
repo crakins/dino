@@ -26,6 +26,16 @@ struct MarketView: View {
     }
 
     private var gridView: some View {
+        ZStack {
+            // Only the background should bleed into the unsafe/rounded-corner region (to hide
+            // the system clock showing through) — the actual tappable content must stay inset,
+            // or buttons in the top corners land in the bezel's touch dead-zone.
+            PandaColor.ink.ignoresSafeArea()
+            gridContent
+        }
+    }
+
+    private var gridContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             MarketBackButton(label: "Home", action: onClose)
                 .padding(.horizontal, 8)
@@ -73,8 +83,6 @@ struct MarketView: View {
         }
         .padding(.top, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(PandaColor.ink)
-        .ignoresSafeArea()
     }
 
     private func tabButton(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {

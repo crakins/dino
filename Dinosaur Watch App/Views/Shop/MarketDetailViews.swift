@@ -16,6 +16,15 @@ struct KinDetailView: View {
         let hasWorld = kin.requiredWorld.map { data.owns($0) } ?? true
         let canPurchase = data.canPurchase(kin)
 
+        ZStack {
+            // Only the background bleeds into the unsafe/rounded-corner region — the back
+            // button must stay inset or it lands in the bezel's touch dead-zone.
+            PandaColor.ink.ignoresSafeArea()
+            kinDetailContent(data: data, isOwned: isOwned, isEquipped: isEquipped, hasWorld: hasWorld, canPurchase: canPurchase)
+        }
+    }
+
+    private func kinDetailContent(data: PlayerData, isOwned: Bool, isEquipped: Bool, hasWorld: Bool, canPurchase: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             MarketBackButton(label: "Market", action: onBack)
             Text("KIN · \(kin.stage) OF \(Kin.allCases.count)")
@@ -87,8 +96,6 @@ struct KinDetailView: View {
         .padding(.top, 9)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(PandaColor.ink)
-        .ignoresSafeArea()
     }
 
     private func evolutionDot(for stage: Kin, currentlyOwned: Bool) -> some View {
@@ -132,6 +139,15 @@ struct WorldDetailView: View {
         let hasLevel = data.playerLevel >= world.requiredPlayerLevel
         let canPurchase = data.canPurchase(world)
 
+        ZStack {
+            // Only the background bleeds into the unsafe/rounded-corner region — the back
+            // button must stay inset or it lands in the bezel's touch dead-zone.
+            PandaColor.ink.ignoresSafeArea()
+            worldDetailContent(data: data, isOwned: isOwned, isEquipped: isEquipped, hasLevel: hasLevel, canPurchase: canPurchase)
+        }
+    }
+
+    private func worldDetailContent(data: PlayerData, isOwned: Bool, isEquipped: Bool, hasLevel: Bool, canPurchase: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             MarketBackButton(label: "Market", action: onBack)
             Text("WORLDS")
@@ -187,8 +203,6 @@ struct WorldDetailView: View {
         .padding(.top, 9)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(PandaColor.ink)
-        .ignoresSafeArea()
     }
 
     private func tag(_ text: String, color: Color, background: Color) -> some View {

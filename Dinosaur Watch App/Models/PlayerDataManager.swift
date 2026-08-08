@@ -36,6 +36,12 @@ class PlayerDataManager {
         }
     }
 
+    /// Call once per completed run. Returns the coin/XP bonus if this run just completed the daily quest.
+    @discardableResult
+    func recordQuestRun() -> (coins: Int, xp: Int)? {
+        playerData.recordQuestRun()
+    }
+
     // MARK: - Equipped Accessors
 
     var equippedKin: Kin {

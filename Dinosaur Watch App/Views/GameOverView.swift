@@ -16,6 +16,15 @@ struct GameOverView: View {
     @State private var canRestart = false
 
     var body: some View {
+        ZStack {
+            // Only the background bleeds into the unsafe/rounded-corner region — buttons must
+            // stay inset or they land in the bezel's touch dead-zone.
+            PandaColor.ink.ignoresSafeArea()
+            content
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("RUN ENDED")
@@ -98,8 +107,6 @@ struct GameOverView: View {
         .padding(.top, 9)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(PandaColor.ink)
-        .ignoresSafeArea()
         .onAppear {
             canRestart = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {

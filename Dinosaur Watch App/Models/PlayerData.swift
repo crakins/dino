@@ -16,6 +16,24 @@ struct PlayerData: Codable {
     // Daily tracking
     var lastDailyBonusDate: Double = 0
 
+    // Daily quest — "finish N runs today". Resets whenever a completed run lands on a new day.
+    static let dailyQuestTarget = 3
+    static let dailyQuestCoinReward = 40
+    static let dailyQuestXPReward = 120
+
+    var dailyQuestDate: Double = 0
+    var dailyQuestProgress: Int = 0
+    var dailyQuestRewardClaimed: Bool = false
+
+    /// Progress for *today* — stale progress from a prior day reads as 0 without needing a mutation.
+    var todaysQuestProgress: Int {
+        Calendar.current.isDate(Date(timeIntervalSince1970: dailyQuestDate), inSameDayAs: Date()) ? dailyQuestProgress : 0
+    }
+
+    var isDailyQuestComplete: Bool {
+        todaysQuestProgress >= Self.dailyQuestTarget
+    }
+
     // MARK: - Player Level
 
     var playerLevel: Int {
@@ -101,5 +119,25 @@ struct PlayerData: Codable {
     mutating func equip(_ world: World) {
         guard owns(world) else { return }
         equippedWorld = world.rawValue
+    }
+
+    // MARK: - Daily Quest
+
+    /// Call once per completed run. Returns the coin/XP bonus if this run just completed the quest.
+    mutating func recordQuestRun() -> (coins: Int, xp: Int)? {
+        if !Calendar.current.isDate(Date(timeIntervalSince1970: dailyQuestDate), inSameDayAs: Date()) {
+            dailyQuestDate = Date().timeIntervalSince1970
+            dailyQuestProgress = 0
+            dailyQuestRewardClaimed = false
+        }
+
+        guard dailyQuestProgress < Self.dailyQuestTarget else { return nil }
+        dailyQuestProgress += 1
+
+        guard dailyQuestProgress >= Self.dailyQuestTarget, !dailyQuestRewardClaimed else { return nil }
+        dailyQuestRewardClaimed = true
+        coins += Self.dailyQuestCoinReward
+        totalXP += Self.dailyQuestXPReward
+        return (Self.dailyQuestCoinReward, Self.dailyQuestXPReward)
     }
 }

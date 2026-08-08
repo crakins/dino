@@ -44,6 +44,16 @@ struct MenuView: View {
     }
 
     var body: some View {
+        ZStack {
+            // Only the background bleeds into the unsafe/rounded-corner region — the level
+            // chip in BannerView's top-right corner must stay inset or it lands in the
+            // bezel's touch dead-zone.
+            PandaColor.ink.ignoresSafeArea()
+            content
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
             BannerView(coins: coins, playerLevel: playerLevel, xpFraction: xpFraction, onProfile: onProfile)
                 .frame(height: 62)
@@ -57,8 +67,6 @@ struct MenuView: View {
             .padding(.vertical, 6)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(PandaColor.ink)
-        .ignoresSafeArea()
     }
 
     private var currentSeason: String {
@@ -177,10 +185,11 @@ private struct BannerView: View {
                     }
                     .frame(height: 4, alignment: .bottom)
 
-                    // Panda sprite
+                    // Panda sprite — centered in the gap between the wordmark and the level chip
+                    // (not a fixed x, so it doesn't drift under the chip on different screen sizes).
                     PandaSprite()
                         .frame(width: 28, height: 20)
-                        .offset(x: 112, y: -10 - bob)
+                        .offset(x: proxy.size.width / 2 - 14, y: -10 - bob)
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottomLeading)
             }
@@ -305,7 +314,7 @@ private struct QuestCard: View {
                     Text("Today's quest")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(PandaColor.white)
-                    Text("CLEAR \(target) HOLLOWS · \(progress)/\(target)")
+                    Text("FINISH \(target) RUNS · \(progress)/\(target)")
                         .font(.system(size: 7.5, weight: .regular, design: .monospaced))
                         .foregroundColor(PandaColor.white.opacity(0.45))
                 }
