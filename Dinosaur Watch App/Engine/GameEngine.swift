@@ -15,6 +15,7 @@ struct GameEngine {
         updateDinosaur(state: state, dt: dt, tuning: tuning)
         updateObstacles(state: state, dt: dt, speed: speed)
         updateOverheadHazards(state: state, dt: dt, speed: speed)
+        updateSkyIcicles(state: state, dt: dt, speed: speed)
         updateShoots(state: state, dt: dt, speed: speed, canvasSize: canvasSize)
         updatePowerUp(state: state, dt: deltaTime)
         updateGroundStability(state: state, dt: deltaTime, tuning: tuning)
@@ -23,16 +24,25 @@ struct GameEngine {
         spawnOverheadIfNeeded(state: state, canvasSize: canvasSize, tuning: tuning)
         spawnTerracesIfNeeded(state: state, canvasSize: canvasSize, tuning: tuning)
         spawnShootsIfNeeded(state: state, canvasSize: canvasSize)
+        spawnSkyIciclesIfNeeded(state: state, canvasSize: canvasSize)
 
         let hitObstacle = checkObstacleCollision(state: state, canvasSize: canvasSize)
         let hitOverhead = checkOverheadCollision(state: state, canvasSize: canvasSize)
         let groundGaveWay = state.world.mechanic == .unstable && state.groundStability <= 0 && !state.dinosaur.isJumping
-        // Walked (not jumped) into a gap — no way to recover.
-        let fellInGap = state.world.mechanic == .elevation && state.isOverGap && !state.dinosaur.isJumping
-        // Jumped but the arc carried past every platform in reach — genuinely missed the landing.
-        let missedLanding = state.world.mechanic == .elevation && state.dinosaur.isJumping && state.dinosaur.y < -60
 
-        if (hitObstacle || hitOverhead || groundGaveWay || fellInGap || missedLanding) && !state.powerUpActive {
+        // Walked (not jumped) into a gap — no way to recover, but rather than end the run the
+        // instant a foot leaves the ledge, let gravity take over so the panda visibly tips off
+        // the edge and falls out of frame before the run actually ends.
+        if state.world.mechanic == .elevation && state.isOverGap && !state.dinosaur.isJumping {
+            state.dinosaur.isJumping = true
+            state.dinosaur.velocityY = 0
+            state.isFallingToDeath = true
+        }
+        // Either a walk-off-the-ledge fall or a jump whose arc carried past every platform in
+        // reach — genuinely missed the landing and has fallen far enough to vanish off-screen.
+        let missedLanding = state.world.mechanic == .elevation && state.dinosaur.isJumping && state.dinosaur.y < -70
+
+        if (hitObstacle || hitOverhead || groundGaveWay || missedLanding) && !state.powerUpActive {
             WKInterfaceDevice.current().play(.failure)
             state.phase = .gameOver
             return
@@ -59,10 +69,12 @@ struct GameEngine {
         state.groundStability = 1.0 // fresh footing once airborne
     }
 
-    static func duck(state: GameState) {
+    /// Live-updates how small the panda is from the Digital Crown position — called continuously
+    /// as the crown turns, not just once on a threshold crossing, so the player can dial in
+    /// exactly how far to shrink for a normal lantern versus an extra-large one.
+    static func setDuckLevel(state: GameState, level: CGFloat) {
         guard state.phase == .playing, !state.dinosaur.isJumping else { return }
-        state.dinosaur.isDucking = true
-        state.dinosaur.duckTimeRemaining = GameConstants.duckDuration
+        state.dinosaur.duckLevel = max(0, min(1, level))
     }
 
     static func activatePowerUp(state: GameState) {
@@ -82,7 +94,10 @@ struct GameEngine {
 
             // Over a Mist Terraces gap, keep falling past y=0 instead of snapping to a ground
             // that isn't there yet — the jump only ends once an actual platform is underneath.
-            let overGap = state.world.mechanic == .elevation && state.isOverGap
+            // Once a fatal fall has begun, ignore any ledge that scrolls in underneath too —
+            // the run is already over, so the panda should keep falling out of frame rather
+            // than "land" on it and let the player carry on.
+            let overGap = state.world.mechanic == .elevation && (state.isOverGap || state.isFallingToDeath)
             if state.dinosaur.y <= 0 && !overGap {
                 state.dinosaur.y = 0
                 state.dinosaur.velocityY = 0
@@ -90,19 +105,28 @@ struct GameEngine {
             }
         }
 
-        if state.dinosaur.isDucking {
-            state.dinosaur.duckTimeRemaining -= TimeInterval(dt)
-            if state.dinosaur.duckTimeRemaining <= 0 {
-                state.dinosaur.isDucking = false
-            }
+        // Jumping overrides any shrink in progress — can't jump while scrunched down.
+        if state.dinosaur.isJumping && state.dinosaur.duckLevel > 0 {
+            state.dinosaur.duckLevel = 0
         }
     }
 
     private static func updateObstacles(state: GameState, dt: CGFloat, speed: CGFloat) {
         for i in state.obstacles.indices {
             state.obstacles[i].x -= speed * dt * state.obstacles[i].speedMultiplier
+            if state.obstacles[i].fallProgress < 1 {
+                state.obstacles[i].fallProgress = min(1, state.obstacles[i].fallProgress + dt / GameConstants.icicleFallDuration)
+            }
         }
         state.obstacles.removeAll { $0.x < -50 }
+    }
+
+    private static func updateSkyIcicles(state: GameState, dt: CGFloat, speed: CGFloat) {
+        guard state.world.mechanic == .overhead else { return }
+        for i in state.skyIcicles.indices {
+            state.skyIcicles[i].y += state.skyIcicles[i].velocityY * dt
+        }
+        state.skyIcicles.removeAll { $0.y > GameConstants.skyIcicleMaxFall }
     }
 
     private static func updateOverheadHazards(state: GameState, dt: CGFloat, speed: CGFloat) {
@@ -195,13 +219,26 @@ struct GameEngine {
 
     // MARK: - Spawning
 
+    /// Distance-based spawn gaps get covered faster as `gameSpeed` ramps up, which otherwise
+    /// squeezes the *time* between obstacles down toward zero the longer a run goes. Scaling
+    /// gaps by how far above the initial speed we are keeps the pace from spiraling into an
+    /// unplayable wall while still letting things feel busier at high speed.
+    private static func speedGapScale(state: GameState) -> CGFloat {
+        state.gameSpeed / GameConstants.initialSpeed
+    }
+
+    private static func jitteredGap(_ base: CGFloat, state: GameState) -> CGFloat {
+        base * speedGapScale(state: state) * CGFloat.random(in: GameConstants.obstacleGapSpeedJitter)
+    }
+
     private static func spawnObstaclesIfNeeded(state: GameState, canvasSize: CGSize, tuning: WorldSeasonTuning) {
         let spawnX = canvasSize.width + 20
         let gapSinceLastSpawn = state.distanceTraveled - state.lastObstacleSpawnDistance
 
         switch state.world.mechanic {
         case .rhythm:
-            guard gapSinceLastSpawn >= GameConstants.rhythmGap else { return }
+            let requiredGap = jitteredGap(GameConstants.rhythmGap, state: state)
+            guard gapSinceLastSpawn >= requiredGap else { return }
             let type = GameState.rhythmPattern[state.rhythmPatternIndex % GameState.rhythmPattern.count]
             state.rhythmPatternIndex += 1
             state.obstacles.append(.rhythm(atX: spawnX, type: type, heightMultiplier: tuning.obstacleHeightMultiplier))
@@ -211,19 +248,21 @@ struct GameEngine {
             break // Mist Terraces has nothing to dodge — the gaps between platforms are the hazard.
 
         case .overhead:
-            let requiredGap = CGFloat.random(in: GameConstants.minObstacleGap * 1.4...GameConstants.maxObstacleGap * 1.4)
+            // Snow Pass: an icicle drops in from the top of the screen, in the panda's path —
+            // it isn't solid (and can't hit or be jumped) until it finishes falling and lands.
+            let requiredGap = jitteredGap(CGFloat.random(in: GameConstants.minObstacleGap * 1.4...GameConstants.maxObstacleGap * 1.4), state: state)
             guard gapSinceLastSpawn >= requiredGap else { return }
-            state.obstacles.append(.random(atX: spawnX, heightMultiplier: tuning.obstacleHeightMultiplier * 0.7))
+            state.obstacles.append(.fallingIcicle(atX: spawnX, heightMultiplier: tuning.obstacleHeightMultiplier * 0.7))
             state.lastObstacleSpawnDistance = state.distanceTraveled
 
         case .tempo:
-            let requiredGap = GameConstants.tempoGap / tuning.hazardDensityMultiplier
+            let requiredGap = jitteredGap(GameConstants.tempoGap, state: state) / tuning.hazardDensityMultiplier
             guard gapSinceLastSpawn >= requiredGap else { return }
             state.obstacles.append(.random(atX: spawnX, heightMultiplier: tuning.obstacleHeightMultiplier))
             state.lastObstacleSpawnDistance = state.distanceTraveled
 
         case .unstable:
-            let requiredGap = CGFloat.random(in: GameConstants.minObstacleGap...GameConstants.maxObstacleGap)
+            let requiredGap = jitteredGap(CGFloat.random(in: GameConstants.minObstacleGap...GameConstants.maxObstacleGap), state: state)
             guard gapSinceLastSpawn >= requiredGap else { return }
             state.obstacles.append(.random(atX: spawnX, heightMultiplier: tuning.obstacleHeightMultiplier))
             state.lastObstacleSpawnDistance = state.distanceTraveled
@@ -231,16 +270,17 @@ struct GameEngine {
     }
 
     private static func spawnOverheadIfNeeded(state: GameState, canvasSize: CGSize, tuning: WorldSeasonTuning) {
-        guard state.world.mechanic == .overhead || state.world.mechanic == .tempo else { return }
+        // Snow Pass no longer has duck-hazards — its icicles fall into the panda's path as
+        // ground obstacles instead (see spawnObstaclesIfNeeded's .overhead case).
+        guard state.world.mechanic == .tempo else { return }
 
         let spawnX = canvasSize.width + 20
         let gapSinceLastSpawn = state.distanceTraveled - state.lastOverheadSpawnDistance
-        let baseGap = state.world.mechanic == .tempo ? GameConstants.tempoGap * 1.4 : GameConstants.minOverheadGap
-        let requiredGap = baseGap / tuning.hazardDensityMultiplier
+        let requiredGap = jitteredGap(GameConstants.tempoGap * 1.4, state: state) / tuning.hazardDensityMultiplier
 
         guard gapSinceLastSpawn >= requiredGap else { return }
 
-        state.overheadHazards.append(.random(atX: spawnX, reachRange: GameConstants.overheadReachRange))
+        state.overheadHazards.append(.randomLantern(atX: spawnX))
         state.lastOverheadSpawnDistance = state.distanceTraveled
     }
 
@@ -261,6 +301,19 @@ struct GameEngine {
             let height = CGFloat.random(in: -18...18) * tuning.terraceHeightMultiplier
             state.terraces.append(Terrace(x: rightEdge + gapWidth, width: GameConstants.terraceSegmentLength, heightOffset: height))
         }
+    }
+
+    /// Ambient icicles falling behind the panda's fixed screen position — pure atmosphere for
+    /// Snow Pass. They only ever spawn to the left of the panda (already-passed ground), so they
+    /// can never be mistaken for something to react to.
+    private static func spawnSkyIciclesIfNeeded(state: GameState, canvasSize: CGSize) {
+        guard state.world.mechanic == .overhead else { return }
+
+        let gapSinceLastSpawn = state.distanceTraveled - state.lastSkyIcicleSpawnDistance
+        guard gapSinceLastSpawn >= GameConstants.skyIcicleGap else { return }
+
+        state.skyIcicles.append(.random(behindX: state.dinosaur.x - 10))
+        state.lastSkyIcicleSpawnDistance = state.distanceTraveled
     }
 
     private static func spawnShootsIfNeeded(state: GameState, canvasSize: CGSize) {
@@ -287,6 +340,7 @@ struct GameEngine {
         ).insetBy(dx: 4, dy: 4)
 
         for obstacle in state.obstacles {
+            guard obstacle.fallProgress >= 1 else { continue }
             let obstacleRect = CGRect(
                 x: obstacle.x,
                 y: groundY - obstacle.height,
@@ -303,9 +357,11 @@ struct GameEngine {
     }
 
     private static func checkOverheadCollision(state: GameState, canvasSize: CGSize) -> Bool {
-        guard !state.dinosaur.isDucking else { return false }
         let groundY = canvasSize.height - GameConstants.groundOffset - state.currentTerraceHeight
-        let dinoTopY = groundY - state.dinosaur.y - state.dinosaur.height
+        // Uses currentHeight (not the fixed standing height) so how far the panda actually
+        // shrunk determines what it clears — a shallow duck only ducks a shallow lantern, an
+        // extra-large one needs the panda genuinely small.
+        let dinoTopY = groundY - state.dinosaur.y - state.dinosaur.currentHeight
 
         let dinoHeadRect = CGRect(x: state.dinosaur.x, y: dinoTopY, width: state.dinosaur.width, height: 3).insetBy(dx: 4, dy: 0)
 

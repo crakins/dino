@@ -24,4 +24,11 @@ enum PandaColor {
     static let greenIce = Color(hex: 0xCFE9D4)
     static let greenDeep = Color(hex: 0x4E8C5C)
     static let grey = Color(hex: 0x9AA79C)
+
+    // Kin-only accents — used to tell evolution stages apart in the shop. Kept out of the core
+    // UI palette (which stays green/white/ink) since these only ever appear on a panda itself.
+    static let kinMoss = Color(hex: 0x8AA25C)
+    static let kinAmber = Color(hex: 0xE0A85C)
+    static let kinEmber = Color(hex: 0xD9714E)
+    static let kinAsh = Color(hex: 0x9B9186)
 }

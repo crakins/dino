@@ -40,9 +40,22 @@
 		3B7933E82F19B02B00C17D5A /* Dino Run.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Dino Run.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		3BAA00012F19B02B00C17D5A /* Exceptions for "Dinosaur Watch App" folder in "Dinosaur Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 3B420A192F11FF4900B30829 /* Dinosaur Watch App */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		3B420A1E2F11FF4900B30829 /* Dinosaur Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				3BAA00012F19B02B00C17D5A /* Exceptions for "Dinosaur Watch App" folder in "Dinosaur Watch App" target */,
+			);
 			path = "Dinosaur Watch App";
 			sourceTree = "<group>";
 		};
@@ -382,6 +395,7 @@
 				DEVELOPMENT_TEAM = 3S23A2J2N2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Dinosaur Watch App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Dinosaur;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKWatchOnly = YES;
@@ -411,6 +425,7 @@
 				DEVELOPMENT_TEAM = 3S23A2J2N2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Dinosaur Watch App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Dinosaur;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKWatchOnly = YES;

@@ -71,4 +71,11 @@ class PlayerDataManager {
     func equip(_ world: World) {
         playerData.equip(world)
     }
+
+    // MARK: - First-run Tips
+
+    func markLanternRowTipSeen() {
+        guard !playerData.seenLanternRowTip else { return }
+        playerData.seenLanternRowTip = true
+    }
 }

@@ -25,7 +25,7 @@ struct ContentView: View {
         ZStack {
             switch gameState.phase {
             case .launching:
-                ColdOpenView(onComplete: { gameState.phase = .ready })
+                ColdOpenView(pandaAccentColor: playerDataManager.equippedKin.earAccent, onComplete: { gameState.phase = .ready })
             case .ready:
                 MenuView(
                     highScore: highScore,
@@ -41,9 +41,9 @@ struct ContentView: View {
                     onProfile: { showProfile = true }
                 )
             case .countdown:
-                CountdownView(season: gameState.season, onComplete: startPlaying)
+                CountdownView(season: gameState.season, pandaAccentColor: playerDataManager.equippedKin.earAccent, onComplete: startPlaying)
             case .playing:
-                GameView(gameState: gameState)
+                GameView(gameState: gameState, playerDataManager: playerDataManager)
             case .gameOver:
                 GameOverView(
                     score: gameState.score,
@@ -67,6 +67,10 @@ struct ContentView: View {
                         // Market's "Home" always means the actual Menu screen — if it was
                         // opened from Game Over, closing it should not just reveal Game Over again.
                         goToMenu()
+                    },
+                    onPlay: {
+                        showShop = false
+                        startCountdown()
                     }
                 )
             }

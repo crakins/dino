@@ -28,26 +28,26 @@ struct GameOverView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("RUN ENDED")
-                    .font(.system(size: 8, design: .monospaced))
+                    .font(.numeral(size: 8))
                     .tracking(1.3)
                     .foregroundColor(PandaColor.white.opacity(0.4))
                 Spacer()
                 Text("\(season.displayName) · \(runDurationSeconds)s")
-                    .font(.system(size: 8, design: .monospaced))
+                    .font(.numeral(size: 8))
                     .tracking(0.8)
                     .foregroundColor(PandaColor.white.opacity(0.4))
             }
 
             HStack(alignment: .bottom, spacing: 6) {
                 Text("\(score)")
-                    .font(.system(size: 44, weight: .medium, design: .monospaced))
+                    .font(.numeral(size: 44, weight: .medium))
                     .tracking(-1)
                     .foregroundColor(PandaColor.white)
 
                 VStack(alignment: .leading, spacing: 2) {
                     if isNewHighScore {
                         Text("NEW BEST")
-                            .font(.system(size: 7.5, weight: .heavy, design: .rounded))
+                            .font(.heading(size: 7.5, weight: .heavy))
                             .tracking(0.6)
                             .foregroundColor(PandaColor.ink)
                             .padding(.horizontal, 5)
@@ -55,11 +55,11 @@ struct GameOverView: View {
                             .background(PandaColor.greenMint)
                             .cornerRadius(5)
                         Text("WAS \(highScore)")
-                            .font(.system(size: 7.5, design: .monospaced))
+                            .font(.numeral(size: 7.5))
                             .foregroundColor(PandaColor.white.opacity(0.42))
                     } else {
                         Text("BEST \(highScore)")
-                            .font(.system(size: 7.5, design: .monospaced))
+                            .font(.numeral(size: 7.5))
                             .foregroundColor(PandaColor.white.opacity(0.42))
                     }
                 }
@@ -79,7 +79,7 @@ struct GameOverView: View {
             Spacer(minLength: 4)
 
             Text(streakConsequenceText)
-                .font(.system(size: 7.5, design: .monospaced))
+                .font(.numeral(size: 7.5))
                 .foregroundColor(PandaColor.white.opacity(0.42))
                 .lineSpacing(1.5)
                 .padding(.bottom, 5)
@@ -87,7 +87,7 @@ struct GameOverView: View {
             HStack(spacing: 5) {
                 Button(action: onRestart) {
                     Text("Retry")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .font(.heading(size: 11, weight: .heavy))
                         .tracking(0.3)
                         .foregroundColor(PandaColor.ink)
                         .frame(maxWidth: .infinity)
@@ -146,11 +146,11 @@ private struct RewardRow: View {
     var body: some View {
         HStack {
             Text(line.label)
-                .font(.system(size: 8.5, design: .monospaced))
+                .font(.numeral(size: 8.5))
                 .foregroundColor(line.isHighlight ? PandaColor.green : PandaColor.white.opacity(0.65))
             Spacer()
             Text("+\(line.amount)")
-                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                .font(.numeral(size: 9.5, weight: .medium))
                 .foregroundColor(line.isHighlight ? PandaColor.green : PandaColor.greenMint)
         }
         .padding(.horizontal, 7)

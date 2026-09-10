@@ -41,6 +41,7 @@ private class GameTiming {
 
 struct GameView: View {
     var gameState: GameState
+    var playerDataManager: PlayerDataManager
 
     @GestureState private var isTouching = false
 
@@ -51,6 +52,7 @@ struct GameView: View {
     @State private var lastShootsCollected: Int = 0
     @State private var canvasSize: CGSize = .zero
     @State private var crownValue: Double = 0
+    @State private var lanternTipVisibleUntil: Date?
 
     var body: some View {
         GeometryReader { geometry in
@@ -87,13 +89,15 @@ struct GameView: View {
                 }
         )
         .focusable(true)
-        .digitalCrownRotation($crownValue, from: -1, through: 1, by: 0.1, sensitivity: .high, isContinuous: true)
+        .digitalCrownRotation($crownValue, from: -1, through: 0, by: 0.01, sensitivity: .high, isContinuous: true)
         .onChange(of: crownValue) { oldValue, newValue in
-            if newValue - oldValue < -0.15 {
-                duck()
-            }
-            if abs(newValue) > 0.6 {
-                crownValue = 0
+            // Rotating the crown "down" (negative) shrinks the panda live — 0 is full size, -1
+            // is as small as it gets. No snap-back: it tracks the crown position directly, so
+            // turning it back up grows the panda back out.
+            let wasDucking = gameState.dinosaur.isDucking
+            GameEngine.setDuckLevel(state: gameState, level: -newValue)
+            if !wasDucking && gameState.dinosaur.isDucking {
+                WKInterfaceDevice.current().play(.directionDown)
             }
         }
         .onChange(of: gameState.phase) { _, newPhase in
@@ -102,6 +106,11 @@ struct GameView: View {
                 lastShootsCollected = 0
                 floatingRewards.removeAll()
                 timing.lastUpdateTime = nil
+
+                if gameState.world == .lanternRow && !playerDataManager.playerData.seenLanternRowTip {
+                    lanternTipVisibleUntil = Date().addingTimeInterval(GameConstants.lanternTipDuration)
+                    playerDataManager.markLanternRowTipSeen()
+                }
             }
         }
         .onChange(of: gameState.score) { _, newScore in
@@ -145,12 +154,6 @@ struct GameView: View {
         guard !gameState.dinosaur.isJumping else { return }
         WKInterfaceDevice.current().play(.click)
         GameEngine.jump(state: gameState)
-    }
-
-    private func duck() {
-        guard !gameState.dinosaur.isDucking else { return }
-        WKInterfaceDevice.current().play(.directionDown)
-        GameEngine.duck(state: gameState)
     }
 
     // MARK: - Rewards
@@ -233,8 +236,9 @@ struct GameView: View {
         }
         renderShadow(context: context, groundY: groundY)
         renderGroundStability(context: context, size: size, groundY: groundY, currentTime: currentTime)
+        renderSkyIcicles(context: context, groundY: groundY)
         renderObstacles(context: context, groundY: groundY, season: season)
-        renderOverheadHazards(context: context)
+        renderOverheadHazards(context: context, currentTime: currentTime)
         renderShoots(context: context, groundY: groundY)
         renderPanda(context: context, groundY: groundY)
 
@@ -507,7 +511,7 @@ struct GameView: View {
 
     private func renderPanda(context: GraphicsContext, groundY: CGFloat) {
         var context = context
-        let pandaHeight: CGFloat = gameState.dinosaur.isDucking ? 14 : 22
+        let pandaHeight: CGFloat = 22 * (1 - gameState.dinosaur.duckLevel * 0.65)
         let pandaWidth: CGFloat = pandaHeight * 36 / 26
         let footY = groundY - gameState.dinosaur.y
         let rect = CGRect(x: gameState.dinosaur.x, y: footY - pandaHeight, width: pandaWidth, height: pandaHeight)
@@ -522,12 +526,16 @@ struct GameView: View {
             )
         }
 
-        PandaGraphics.drawPanda(&context, in: rect, rotationDegrees: rotation, earColor: gameState.kinEarAccent)
+        PandaGraphics.drawPanda(&context, in: rect, rotationDegrees: rotation, accentColor: gameState.kinEarAccent)
     }
 
     private func renderObstacles(context: GraphicsContext, groundY: CGFloat, season: Season) {
         for (index, obstacle) in gameState.obstacles.enumerated() {
-            let rect = CGRect(x: obstacle.x, y: groundY - obstacle.height, width: obstacle.width, height: obstacle.height)
+            // A falling Snow Pass icicle drops in from above the top of the play area down to
+            // its resting spot — ease-in so it reads as accelerating under gravity.
+            let dropEase = obstacle.fallProgress * obstacle.fallProgress
+            let dropOffset = (1 - dropEase) * -groundY
+            let rect = CGRect(x: obstacle.x, y: groundY - obstacle.height + dropOffset, width: obstacle.width, height: obstacle.height)
 
             switch gameState.world {
             case .bambooGrove:
@@ -541,6 +549,24 @@ struct GameView: View {
             case .ashHollow:
                 renderScree(context: context, rect: rect)
             }
+        }
+    }
+
+    /// Ambient icicles falling behind the panda in Snow Pass — decorative only, no collision.
+    private func renderSkyIcicles(context: GraphicsContext, groundY: CGFloat) {
+        guard gameState.world.mechanic == .overhead else { return }
+        for icicle in gameState.skyIcicles {
+            let fallFraction = min(1, icicle.y / groundY)
+            let opacity = 1 - max(0, icicle.y - groundY) / GameConstants.skyIcicleMaxFall
+            let rect = CGRect(x: icicle.x, y: icicle.y - 7, width: 3, height: 7 * fallFraction + 2)
+
+            var path = Path()
+            path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            path.closeSubpath()
+
+            context.fill(path, with: .color(PandaColor.greenIce.opacity(0.35 * opacity)))
         }
     }
 
@@ -705,8 +731,9 @@ struct GameView: View {
         }
     }
 
-    private func renderOverheadHazards(context: GraphicsContext) {
+    private func renderOverheadHazards(context: GraphicsContext, currentTime: Date) {
         guard !gameState.overheadHazards.isEmpty else { return }
+        let t = currentTime.timeIntervalSinceReferenceDate
         for hazard in gameState.overheadHazards {
             var path = Path()
             path.move(to: CGPoint(x: hazard.x, y: 0))
@@ -716,11 +743,28 @@ struct GameView: View {
 
             switch gameState.world {
             case .lanternRow:
-                let bodyRect = CGRect(x: hazard.x, y: hazard.reach - 8, width: hazard.width, height: 8)
-                context.fill(Path(CGRect(x: hazard.x + hazard.width / 2 - 0.5, y: 0, width: 1, height: hazard.reach - 8)), with: .color(PandaColor.white.opacity(0.3)))
+                let bodyHeight: CGFloat = hazard.isExtraLarge ? 13 : 8
+                let bodyRect = CGRect(x: hazard.x, y: hazard.reach - bodyHeight, width: hazard.width, height: bodyHeight)
+                let pivot = CGPoint(x: hazard.x + hazard.width / 2, y: 0)
+
+                // Each lantern swings independently — a stable per-lantern phase (seeded from its
+                // id, not its scrolling x) plus a slower period for the bigger, heavier ones.
+                let phase = Double(hazard.id.hashValue.magnitude % 1000) / 1000 * .pi * 2
+                let swingSpeed: Double = hazard.isExtraLarge ? 1.6 : 2.4
+                let swingAmplitude: Double = hazard.isExtraLarge ? 5 : 9
+                let swingAngle = sin(t * swingSpeed + phase) * swingAmplitude
+
                 context.drawLayer { layer in
-                    layer.addFilter(.shadow(color: PandaColor.green.opacity(0.6), radius: 4))
+                    layer.translateBy(x: pivot.x, y: pivot.y)
+                    layer.rotate(by: .degrees(swingAngle))
+                    layer.translateBy(x: -pivot.x, y: -pivot.y)
+
+                    layer.fill(Path(CGRect(x: hazard.x + hazard.width / 2 - 0.5, y: 0, width: 1, height: hazard.reach - bodyHeight)), with: .color(PandaColor.white.opacity(0.3)))
+                    layer.addFilter(.shadow(color: PandaColor.green.opacity(0.6), radius: hazard.isExtraLarge ? 6 : 4))
                     layer.fill(Path(roundedRect: bodyRect, cornerRadius: 3), with: .color(PandaColor.green))
+                    if hazard.isExtraLarge {
+                        layer.stroke(Path(roundedRect: bodyRect.insetBy(dx: 1, dy: 1), cornerRadius: 2.5), with: .color(PandaColor.greenPale.opacity(0.8)), lineWidth: 1)
+                    }
                 }
             default:
                 context.fill(
@@ -752,7 +796,7 @@ struct GameView: View {
         // Score
         context.draw(
             Text("\(gameState.score)")
-                .font(.system(size: 17, weight: .medium, design: .monospaced))
+                .font(.numeral(size: 17, weight: .medium))
                 .foregroundColor(PandaColor.white),
             at: CGPoint(x: 9 + 15, y: 9 + 8),
             anchor: .center
@@ -763,7 +807,7 @@ struct GameView: View {
         context.fill(Path(ellipseIn: dotRect), with: .color(PandaColor.greenPale))
         context.draw(
             Text("\(gameState.shootsCollected)")
-                .font(.system(size: 9, design: .monospaced))
+                .font(.numeral(size: 9))
                 .foregroundColor(PandaColor.white.opacity(0.6)),
             at: CGPoint(x: 9 + 8 + 8, y: 28 + 3),
             anchor: .leading
@@ -773,6 +817,42 @@ struct GameView: View {
         renderHoldButton(context: &context, size: size)
         renderSeasonBanner(context: &context, size: size, currentTime: currentTime)
         renderSeasonProgressBar(context: &context, size: size)
+        renderLanternTip(context: &context, size: size, currentTime: currentTime)
+    }
+
+    /// First-run nudge for Lantern Row: turn the Digital Crown to shrink under the lanterns.
+    private func renderLanternTip(context: inout GraphicsContext, size: CGSize, currentTime: Date) {
+        guard let hideAt = lanternTipVisibleUntil, currentTime < hideAt else { return }
+
+        let remaining = hideAt.timeIntervalSince(currentTime)
+        let fadeWindow: TimeInterval = 0.4
+        let opacity: Double
+        if remaining < fadeWindow {
+            opacity = remaining / fadeWindow
+        } else if GameConstants.lanternTipDuration - remaining < fadeWindow {
+            opacity = (GameConstants.lanternTipDuration - remaining) / fadeWindow
+        } else {
+            opacity = 1
+        }
+
+        let rect = CGRect(x: size.width * 0.5 - 68, y: size.height * 0.5 - 16, width: 136, height: 32)
+        context.fill(Path(roundedRect: rect, cornerRadius: 10), with: .color(PandaColor.ink.opacity(0.85 * opacity)))
+        context.stroke(Path(roundedRect: rect, cornerRadius: 10), with: .color(PandaColor.green.opacity(0.5 * opacity)), lineWidth: 1)
+
+        context.draw(
+            Text("↕ TURN CROWN")
+                .font(.heading(size: 9, weight: .semibold))
+                .foregroundColor(PandaColor.white.opacity(opacity)),
+            at: CGPoint(x: rect.midX, y: rect.midY - 6),
+            anchor: .center
+        )
+        context.draw(
+            Text("to shrink under lanterns")
+                .font(.numeral(size: 7))
+                .foregroundColor(PandaColor.white.opacity(0.6 * opacity)),
+            at: CGPoint(x: rect.midX, y: rect.midY + 8),
+            anchor: .center
+        )
     }
 
     private func renderChargeRing(context: inout GraphicsContext, size: CGSize) {
@@ -797,7 +877,7 @@ struct GameView: View {
 
         context.draw(
             Text("\(Int(gameState.powerCharge))")
-                .font(.system(size: 8, weight: .medium, design: .monospaced))
+                .font(.numeral(size: 8, weight: .medium))
                 .foregroundColor(PandaColor.green),
             at: center,
             anchor: .center
@@ -829,7 +909,7 @@ struct GameView: View {
 
         context.draw(
             Text("HOLD")
-                .font(.system(size: 6.5, design: .monospaced))
+                .font(.numeral(size: 6.5))
                 .foregroundColor(PandaColor.green.opacity(opacity * 0.85)),
             at: CGPoint(x: rect.midX, y: rect.maxY + 6),
             anchor: .center
@@ -852,7 +932,7 @@ struct GameView: View {
 
         let text = "\(gameState.season.displayName) · \(gameState.metersTraveled)m"
         let label = Text(text)
-            .font(.system(size: 8, weight: .semibold, design: .monospaced))
+            .font(.numeral(size: 8, weight: .semibold))
             .foregroundColor(PandaColor.greenIce.opacity(opacity))
 
         context.draw(
@@ -888,7 +968,7 @@ struct GameView: View {
 
             context.draw(
                 Text(reward.text)
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(.numeral(size: 10, weight: .semibold))
                     .foregroundColor(reward.color.opacity(opacity)),
                 at: CGPoint(x: reward.startX, y: reward.startY + yOffset)
             )

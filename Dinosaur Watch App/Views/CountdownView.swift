@@ -3,6 +3,7 @@ import WatchKit
 
 struct CountdownView: View {
     let season: Season
+    var pandaAccentColor: Color = PandaColor.pandaBlack
     let onComplete: () -> Void
 
     @State private var count = 3
@@ -57,7 +58,7 @@ struct CountdownView: View {
 
         context.draw(
             Text("\(count)")
-                .font(.system(size: 54, weight: .heavy, design: .rounded))
+                .font(.heading(size: 54, weight: .heavy))
                 .foregroundColor(PandaColor.white),
             at: center,
             anchor: .center
@@ -69,12 +70,12 @@ struct CountdownView: View {
         let pandaHeight: CGFloat = 23
         let pandaWidth: CGFloat = pandaHeight * 36 / 26
         let pandaRect = CGRect(x: 34, y: size.height - 39 - pandaHeight - bob, width: pandaWidth, height: pandaHeight)
-        PandaGraphics.drawPanda(&context, in: pandaRect)
+        PandaGraphics.drawPanda(&context, in: pandaRect, accentColor: pandaAccentColor)
 
         // Caption
         context.draw(
             Text("\(season.displayName) · TAP TO LEAP")
-                .font(.system(size: 8, design: .monospaced))
+                .font(.numeral(size: 8))
                 .foregroundColor(PandaColor.white.opacity(0.4))
                 .tracking(1.2),
             at: CGPoint(x: size.width / 2, y: size.height - 14),

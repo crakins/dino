@@ -21,12 +21,7 @@ enum World: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    var shortName: String {
-        switch self {
-        case .snowPass: return "Snowcap"
-        default: return displayName
-        }
-    }
+    var shortName: String { displayName }
 
     var hazardName: String {
         switch self {

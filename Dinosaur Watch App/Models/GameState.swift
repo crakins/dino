@@ -5,15 +5,20 @@ struct Dinosaur {
     var y: CGFloat = 0
     var velocityY: CGFloat = 0
     var isJumping: Bool = false
-    var isDucking: Bool = false
-    var duckTimeRemaining: TimeInterval = 0
+    /// How small the panda is right now, driven live by the Digital Crown — 0 is full size,
+    /// 1 is as small as it gets. Continuous (not a single duck/no-duck toggle) so Lantern Row
+    /// can ask for a deeper shrink under its extra-large lanterns than a normal duck needs.
+    var duckLevel: CGFloat = 0
 
     let width: CGFloat = GameConstants.dinoWidth
     let height: CGFloat = GameConstants.dinoHeight
 
-    /// Effective collision height right now — compressed while ducking (Snow Pass / Lantern Row).
+    var isDucking: Bool { duckLevel > 0.05 }
+
+    /// Effective collision height right now — shrinks continuously with duckLevel
+    /// (Snow Pass / Lantern Row).
     var currentHeight: CGFloat {
-        isDucking ? height * 0.5 : height
+        height * (1 - duckLevel * 0.8)
     }
 }
 
@@ -24,6 +29,10 @@ struct Obstacle: Identifiable {
     let height: CGFloat
     /// Extra closing speed beyond world scroll — used for Mist Terraces' rolling stones.
     var speedMultiplier: CGFloat = 1.0
+    /// 0 = still dropping in from the top of the screen, 1 = landed and solid. Only Snow Pass's
+    /// icicle obstacles start below 1 — everything else spawns already landed. Collision is
+    /// ignored until this reaches 1, so the icicle can't clip the panda mid-fall.
+    var fallProgress: CGFloat = 1
 
     enum ObstacleType {
         case bambooShort
@@ -40,6 +49,13 @@ struct Obstacle: Identifiable {
 
     static func rhythm(atX x: CGFloat, type: ObstacleType, heightMultiplier: CGFloat = 1.0) -> Obstacle {
         Obstacle(x: x, width: type.width, height: type.height * heightMultiplier, type: type)
+    }
+
+    /// A Snow Pass icicle that falls from the top of the screen into the panda's path — visibly
+    /// dropping in (fallProgress starts at 0) rather than sliding in already resting on the ground.
+    static func fallingIcicle(atX x: CGFloat, heightMultiplier: CGFloat = 1.0) -> Obstacle {
+        let type = ObstacleType.allCases.randomElement()!
+        return Obstacle(x: x, width: type.width, height: type.height * heightMultiplier, fallProgress: 0, type: type)
     }
 }
 
@@ -69,9 +85,33 @@ struct OverheadHazard: Identifiable {
     let width: CGFloat
     /// How far down from the top of the play area this hazard reaches.
     let reach: CGFloat
+    /// Lantern Row only: an oversized lantern that needs a full crown-down shrink to clear,
+    /// not just a normal duck.
+    var isExtraLarge: Bool = false
 
     static func random(atX x: CGFloat, reachRange: ClosedRange<CGFloat>) -> OverheadHazard {
         OverheadHazard(x: x, width: 8, reach: CGFloat.random(in: reachRange))
+    }
+
+    static func randomLantern(atX x: CGFloat) -> OverheadHazard {
+        let isExtraLarge = CGFloat.random(in: 0...1) < GameConstants.extraLargeLanternChance
+        let width: CGFloat = isExtraLarge ? 12 : 8
+        let reachRange = isExtraLarge ? GameConstants.extraLargeLanternReachRange : GameConstants.overheadReachRange
+        return OverheadHazard(x: x, width: width, reach: CGFloat.random(in: reachRange), isExtraLarge: isExtraLarge)
+    }
+}
+
+/// A purely decorative icicle falling in the background behind the panda — Snow Pass ambience.
+/// Always spawns behind the panda's fixed screen position, so it never intersects the player;
+/// it just falls to the ground line and fades out.
+struct SkyIcicle: Identifiable {
+    let id = UUID()
+    let x: CGFloat
+    var y: CGFloat = 0
+    var velocityY: CGFloat = 60
+
+    static func random(behindX limit: CGFloat) -> SkyIcicle {
+        SkyIcicle(x: CGFloat.random(in: 4..<max(5, limit)), velocityY: CGFloat.random(in: 50...85))
     }
 }
 
@@ -147,11 +187,19 @@ class GameState {
     var overheadHazards: [OverheadHazard] = []
     var lastOverheadSpawnDistance: CGFloat = 0
 
+    // Ambient falling icicles behind the panda (Snow Pass) — decorative only.
+    var skyIcicles: [SkyIcicle] = []
+    var lastSkyIcicleSpawnDistance: CGFloat = 0
+
     // Elevation (Mist Terraces)
     var terraces: [Terrace] = []
     var currentTerraceHeight: CGFloat = 0
     /// True when the dinosaur's x position has no platform beneath it — a gap in Mist Terraces.
     var isOverGap: Bool = false
+    /// Set once a Mist Terraces fall has begun — the run is already lost, but rather than end
+    /// instantly this keeps the panda falling through any ledge that scrolls in underneath
+    /// instead of letting it "land" and continue, so the death animation always finishes.
+    var isFallingToDeath: Bool = false
 
     // Ground stability (Ash Hollow) — depletes while grounded, resets on jump.
     var groundStability: CGFloat = 1.0
@@ -201,9 +249,12 @@ class GameState {
         rhythmPatternIndex = 0
         overheadHazards = []
         lastOverheadSpawnDistance = 0
+        skyIcicles = []
+        lastSkyIcicleSpawnDistance = 0
         terraces = []
         currentTerraceHeight = 0
         isOverGap = false
+        isFallingToDeath = false
         groundStability = 1.0
         shoots = []
         lastShootSpawnDistance = 0

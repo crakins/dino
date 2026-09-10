@@ -25,6 +25,9 @@ struct PlayerData: Codable {
     var dailyQuestProgress: Int = 0
     var dailyQuestRewardClaimed: Bool = false
 
+    // First-run tips — shown once per world, then never again.
+    var seenLanternRowTip: Bool = false
+
     /// Progress for *today* — stale progress from a prior day reads as 0 without needing a mutation.
     var todaysQuestProgress: Int {
         Calendar.current.isDate(Date(timeIntervalSince1970: dailyQuestDate), inSameDayAs: Date()) ? dailyQuestProgress : 0

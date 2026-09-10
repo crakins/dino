@@ -3,6 +3,7 @@ import SwiftUI
 /// Launch splash — the panda is already running before you've read anything.
 /// Loops seamlessly for as long as it's shown, then hands off to the home screen.
 struct ColdOpenView: View {
+    var pandaAccentColor: Color = PandaColor.pandaBlack
     let onComplete: () -> Void
 
     private let minimumDuration: TimeInterval = 1.4
@@ -37,14 +38,14 @@ struct ColdOpenView: View {
         // Wordmark
         context.draw(
             Text("PANDA")
-                .font(.system(size: 26, weight: .heavy, design: .rounded))
+                .font(.heading(size: 26, weight: .heavy))
                 .foregroundColor(PandaColor.white),
             at: CGPoint(x: size.width / 2, y: 62 + 13),
             anchor: .center
         )
         context.draw(
             Text("PANDA")
-                .font(.system(size: 26, weight: .heavy, design: .rounded))
+                .font(.heading(size: 26, weight: .heavy))
                 .foregroundColor(PandaColor.green),
             at: CGPoint(x: size.width / 2, y: 62 + 13 + 22),
             anchor: .center
@@ -88,7 +89,7 @@ struct ColdOpenView: View {
         let x = -pandaWidth + acrossPhase * (size.width + pandaWidth * 2)
         let bob = abs(sin(t * (.pi / 0.38))) * 3
         let pandaRect = CGRect(x: x, y: groundY - 1 - pandaHeight - bob, width: pandaWidth, height: pandaHeight)
-        PandaGraphics.drawPanda(&context, in: pandaRect)
+        PandaGraphics.drawPanda(&context, in: pandaRect, accentColor: pandaAccentColor)
 
         // Loading dots
         let dotY = size.height - 16

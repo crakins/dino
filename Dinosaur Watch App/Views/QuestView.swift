@@ -54,7 +54,7 @@ struct QuestView: View {
                 questCard
                     .padding(.top, 6)
                 Text("This week's burrow")
-                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .font(.heading(size: 9.5, weight: .semibold))
                     .foregroundColor(PandaColor.white)
                     .padding(.top, 8)
                 leaderboard
@@ -63,43 +63,43 @@ struct QuestView: View {
                     .padding(.top, 6)
             }
             .padding(.horizontal, 8)
-            .padding(.top, 8)
+            .padding(.top, -30)
             .padding(.bottom, 8)
         }
     }
 
     private var header: some View {
-        HStack {
-            Text("Today")
-                .font(.system(size: 12, weight: .heavy, design: .rounded))
-                .foregroundColor(PandaColor.white)
-            Spacer()
-            Button(action: onClose) {
-                ZStack {
-                    Circle().fill(PandaColor.white.opacity(0.18))
-                    Image(systemName: "xmark")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(PandaColor.white)
+        VStack(alignment: .leading, spacing: 2) {
+            MarketBackButton(label: "Home", action: onClose)
+
+            HStack {
+                Text("Today")
+                    .font(.heading(size: 12, weight: .heavy))
+                    .foregroundColor(PandaColor.white)
+                Spacer()
+                HStack(spacing: 3) {
+                    CoinDot(size: 9)
+                    Text("\(playerData.coins)")
+                        .font(.numeral(size: 10, weight: .medium))
+                        .foregroundColor(PandaColor.greenMint)
                 }
-                .frame(width: 18, height: 18)
             }
-            .buttonStyle(.plain)
+            .padding(.top, 2)
 
             Text(resetCaption)
-                .font(.system(size: 7.5, design: .monospaced))
+                .font(.numeral(size: 7.5))
                 .foregroundColor(PandaColor.white.opacity(0.4))
-                .padding(.leading, 4)
         }
     }
 
     private var questCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(isComplete ? "Quest complete" : "Finish three runs")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .font(.heading(size: 11, weight: .semibold))
                 .foregroundColor(PandaColor.white)
 
             Text(isComplete ? "COME BACK TOMORROW FOR A NEW ONE" : "ANY RUN COUNTS · \(progress) OF \(target)")
-                .font(.system(size: 7.5, design: .monospaced))
+                .font(.numeral(size: 7.5))
                 .foregroundColor(PandaColor.white.opacity(0.5))
                 .padding(.top, 2)
 
@@ -114,7 +114,7 @@ struct QuestView: View {
 
             HStack {
                 Text("+\(PlayerData.dailyQuestXPReward) XP · +\(PlayerData.dailyQuestCoinReward)")
-                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .font(.numeral(size: 8, weight: .medium))
                     .foregroundColor(PandaColor.green)
 
                 Spacer()
@@ -125,7 +125,7 @@ struct QuestView: View {
                         onRun()
                     } label: {
                         Text("Run →")
-                            .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                            .font(.heading(size: 8.5, weight: .semibold))
                             .foregroundColor(PandaColor.green)
                     }
                     .buttonStyle(.plain)
@@ -155,15 +155,15 @@ struct QuestView: View {
     private func leaderboardRow(rank: Int, name: String, score: Int, isYou: Bool) -> some View {
         HStack(spacing: 6) {
             Text("\(rank)")
-                .font(.system(size: 8, design: .monospaced))
+                .font(.numeral(size: 8))
                 .foregroundColor(isYou ? PandaColor.green : PandaColor.white.opacity(0.4))
                 .frame(width: 9, alignment: .leading)
             Text(name)
-                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .font(.heading(size: 9, weight: .semibold))
                 .foregroundColor(isYou ? PandaColor.green : PandaColor.white)
             Spacer()
             Text("\(score)")
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                .font(.numeral(size: 9, weight: .medium))
                 .foregroundColor(isYou ? PandaColor.green : PandaColor.white)
         }
         .padding(.horizontal, 7)
@@ -183,7 +183,7 @@ struct QuestView: View {
     private var gapCaption: some View {
         let gap = rivalAhead.score - highScore
         return Text(gap > 0 ? "\(gap) more and \(rivalAhead.name)'s yours." : "You're in the lead.")
-            .font(.system(size: 7.5, design: .monospaced))
+            .font(.numeral(size: 7.5))
             .foregroundColor(PandaColor.white.opacity(0.42))
     }
 }
