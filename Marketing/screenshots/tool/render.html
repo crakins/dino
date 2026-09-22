@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<!--
+  App Store screenshot renderer for Panda Panda (watchOS).
+
+  Every screen here is a line-by-line port of the SwiftUI source in "Dinosaur Watch App/":
+  Canvas drawing code (GameView, PandaGraphics, WorldTileScene, MenuView.PandaFaceIcon) is
+  ported call-for-call to Canvas2D, and SwiftUI stacks are mirrored with the same sizes,
+  paddings, colors and the app's bundled fonts. Driven by shoot.mjs.
+
+  URL hash: #screen=<name>&w=<pt>&h=<pt>&top=<safe top pt>&bottom=<safe bottom pt>&clock=<pt>
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: "BG-XB"; src: url("../../../Dinosaur Watch App/Fonts/BricolageGrotesque-ExtraBold.ttf"); }
+  @font-face { font-family: "BG-B"; src: url("../../../Dinosaur Watch App/Fonts/BricolageGrotesque-Bold.ttf"); }
+  @font-face { font-family: "DMM"; src: url("../../../Dinosaur Watch App/Fonts/DMMono-Regular.ttf"); }
+  @font-face { font-family: "DMM-M"; src: url("../../../Dinosaur Watch App/Fonts/DMMono-Medium.ttf"); }
+  @font-face { font-family: "SysSB"; src: url("fonts/Inter-SemiBold.woff2"); }
+
+  html, body { margin: 0; padding: 0; background: #0E100E; }
+  * { box-sizing: border-box; }
+  #screen { position: relative; overflow: hidden; background: #0E100E; }
+  .abs { position: absolute; }
+  .row { display: flex; flex-direction: row; align-items: center; }
+  .col { display: flex; flex-direction: column; }
+  .spacer { flex: 1 1 0; }
+  .t { white-space: pre; line-height: normal; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<div id="screen"></div>
+<script>
+// ---------------------------------------------------------------------------------------------
+// Parameters
+// ---------------------------------------------------------------------------------------------
+const P = Object.fromEntries(location.hash.slice(1).split("&").map(kv => kv.split("=")));
+const W = +P.w, H = +P.h, SAFE_TOP = +P.top, SAFE_BOTTOM = +P.bottom;
+const CLOCK = +(P.clock || 0);
+const DPR = window.devicePixelRatio || 2;
+
+// ---------------------------------------------------------------------------------------------
+// PandaColor.swift
+// ---------------------------------------------------------------------------------------------
+function col(hex, a = 1) {
+  return { r: (hex >> 16) & 255, g: (hex >> 8) & 255, b: hex & 255, a };
+}
+function op(c, a) { return { r: c.r, g: c.g, b: c.b, a: c.a * a }; }
+function css(c) { return `rgba(${c.r},${c.g},${c.b},${c.a})`; }
+const PC = {
+  ink: col(0x0E100E), inkRaised: col(0x1A1D1A), inkSunken: col(0x141614), bannerTop: col(0x191C19),
+  pandaBlack: col(0x2E322E), white: col(0xF4F6F3), green: col(0x6FBE7E), greenPale: col(0xA8D8B0),
+  greenMint: col(0xB9E3C1), greenIce: col(0xCFE9D4), greenDeep: col(0x4E8C5C), grey: col(0x9AA79C),
+  kinMoss: col(0x8AA25C), kinAmber: col(0xE0A85C), kinEmber: col(0xD9714E), kinAsh: col(0x9B9186),
+};
+const CLEAR = { r: 0, g: 0, b: 0, a: 0 };
+
+// ---------------------------------------------------------------------------------------------
+// Models (Kin.swift, World.swift, GameState.swift Season)
+// ---------------------------------------------------------------------------------------------
+const KIN = {
+  panda:     { name: "Panda",     stage: 1, ear: PC.pandaBlack, acc: "none",   expr: "content", reqWorld: null,          reqLevel: 1,  cost: 0,   perk: null, tagline: "Your very own panda. Runs, jumps, no frills yet." },
+  reedpaw:   { name: "Reedpaw",   stage: 2, ear: PC.kinMoss,    acc: "leaf",   expr: "grin",    reqWorld: "bambooGrove", reqLevel: 3,  cost: 80,  perk: null, tagline: "Bamboo-fed and quick on the reeds." },
+  jadepaw:   { name: "Jadepaw",   stage: 3, ear: PC.green,      acc: "collar", expr: "smirk",   reqWorld: "snowPass",    reqLevel: 6,  cost: 300, perk: "×2 SHOOTS", tagline: "Jade collar. Shoots are worth double while the grove holds." },
+  cinderpaw: { name: "Cinderpaw", stage: 4, ear: PC.kinAmber,   acc: "scarf",  expr: "content", reqWorld: "lanternRow",  reqLevel: 9,  cost: 450, perk: null, tagline: "Lantern-warmed fur, steady in the dark rows." },
+  emberpaw:  { name: "Emberpaw",  stage: 5, ear: PC.kinEmber,   acc: "tail",   expr: "grin",    reqWorld: "ashHollow",   reqLevel: 14, cost: 650, perk: null, tagline: "Ash-dusted and unbothered by the scree." },
+};
+const KIN_ORDER = ["panda", "reedpaw", "jadepaw", "cinderpaw", "emberpaw"];
+const WORLD = {
+  bambooGrove:  { name: "Bamboo Grove",  hazard: "BAMBOO STALKS",     cost: 0,   reqLevel: 1,  accent: PC.green },
+  mistTerraces: { name: "Mist Terraces", hazard: "GAPS TO CLEAR",     cost: 0,   reqLevel: 1,  accent: PC.grey },
+  snowPass:     { name: "Snow Pass",     hazard: "FALLING ICICLES",   cost: 200, reqLevel: 1,  accent: PC.greenMint },
+  lanternRow:   { name: "Lantern Row",   hazard: "SWINGING LANTERNS", cost: 0,   reqLevel: 9,  accent: PC.white },
+  ashHollow:    { name: "Ash Hollow",    hazard: "SHIFTING SCREE",    cost: 0,   reqLevel: 14, accent: PC.white },
+};
+const WORLD_ORDER = ["bambooGrove", "mistTerraces", "snowPass", "lanternRow", "ashHollow"];
+const SEASON_ACCENT = { spring: PC.greenPale, summer: PC.green, autumn: PC.greenDeep, winter: PC.greenIce };
+
+// ---------------------------------------------------------------------------------------------
+// The player shown in every screenshot — one consistent save file.
+// Level 7 (xpForNextLevel(7) = 700), 385 coins, 5-day streak, 2 of 3 quest runs done today.
+// ---------------------------------------------------------------------------------------------
+const PLAYER = {
+  level: 7, xpInLevel: 460, xpNeeded: 700, coins: 385, gamesPlayed: 64, highScore: 842, streak: 5,
+  questProgress: 2, questTarget: 3, questXP: 120, questCoins: 40,
+  ownedKin: ["panda", "reedpaw"], ownedWorlds: ["bambooGrove", "mistTerraces", "snowPass"],
+  equippedKin: "panda", equippedWorld: "bambooGrove",
+  calendarSeason: "AUTUMN", // MenuView/WorldTileScene read the calendar month; screenshots taken in September
+};
+const owns = {
+  kin: k => PLAYER.ownedKin.includes(k),
+  world: w => PLAYER.ownedWorlds.includes(w),
+};
+function canPurchaseKin(k) {
+  const d = KIN[k];
+  if (owns.kin(k) || PLAYER.coins < d.cost || PLAYER.level < d.reqLevel) return false;
+  if (d.reqWorld && !owns.world(d.reqWorld)) return false;
+  return true;
+}
+function canPurchaseWorld(w) {
+  const d = WORLD[w];
+  return !owns.world(w) && PLAYER.coins >= d.cost && PLAYER.level >= d.reqLevel;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Canvas helpers (SwiftUI Path / GraphicsContext equivalents)
+// ---------------------------------------------------------------------------------------------
+function makeCanvas(w, h, left = 0, top = 0) {
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * DPR); c.height = Math.round(h * DPR);
+  c.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:${w}px;height:${h}px`;
+  const ctx = c.getContext("2d");
+  ctx.scale(DPR, DPR);
+  return { c, ctx };
+}
+function rectP(ctx, x, y, w, h) { ctx.beginPath(); ctx.rect(x, y, w, h); }
+function rrP(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (w <= 0 || h <= 0) return;
+  ctx.roundRect(x, y, w, h, Math.max(0, Math.min(r, w / 2, h / 2)));
+}
+function ellP(ctx, x, y, w, h) {
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
+}
+function fill(ctx, c) { ctx.fillStyle = css(c); ctx.fill(); }
+function linGrad(ctx, colors, x0, y0, x1, y1, stops) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  colors.forEach((c, i) => g.addColorStop(stops ? stops[i] : (colors.length === 1 ? 0 : i / (colors.length - 1)), css(c)));
+  return g;
+}
+// SwiftUI context.draw(Text, at:, anchor:) — anchors the text's line box.
+function drawText(ctx, str, font, color, x, y, anchor = "center", tracking = 0) {
+  ctx.save();
+  ctx.font = font;
+  ctx.letterSpacing = tracking + "px";
+  ctx.fillStyle = css(color);
+  ctx.textBaseline = "alphabetic";
+  const m = ctx.measureText(str);
+  const asc = m.fontBoundingBoxAscent, desc = m.fontBoundingBoxDescent;
+  const by = y + (asc - desc) / 2;
+  let bx = x;
+  if (anchor === "center") bx = x - m.width / 2;
+  ctx.textAlign = "left";
+  ctx.fillText(str, bx, by);
+  ctx.restore();
+}
+const F = {
+  // Typography.swift
+  heading: (size, weight = "heavy") => `${size}px ${["heavy", "black", "bold"].includes(weight) ? "BG-XB" : "BG-B"}`,
+  numeral: (size, weight = "regular") => `${size}px ${["semibold", "medium", "bold", "heavy"].includes(weight) ? "DMM-M" : "DMM"}`,
+};
+
+// ---------------------------------------------------------------------------------------------
+// PandaGraphics.swift
+// ---------------------------------------------------------------------------------------------
+function drawPanda(ctx, rect, rotationDegrees = 0, accent = PC.pandaBlack) {
+  const s = Math.min(rect.w / 36, rect.h / 26);
+  const X = rect.x, Y = rect.y;
+  const rounded = (x, y, w, h, r) => rrP(ctx, X + x * s, Y + y * s, w * s, h * s, r * s);
+  const circle = (cx, cy, r) => ellP(ctx, X + (cx - r) * s, Y + (cy - r) * s, 2 * r * s, 2 * r * s);
+  const ellipse = (cx, cy, rx, ry) => ellP(ctx, X + (cx - rx) * s, Y + (cy - ry) * s, 2 * rx * s, 2 * ry * s);
+  ctx.save();
+  if (rotationDegrees !== 0) {
+    const ax = rect.x + rect.w / 2, ay = rect.y + rect.h / 2;
+    ctx.translate(ax, ay); ctx.rotate(rotationDegrees * Math.PI / 180); ctx.translate(-ax, -ay);
+  }
+  circle(5.5, 12, 2.4); fill(ctx, PC.white);
+  rounded(8, 16, 4.5, 9, 2.2); fill(ctx, accent);
+  rounded(6, 8, 18, 11, 5); fill(ctx, PC.white);
+  rounded(9.5, 8, 6.5, 9, 3.2); fill(ctx, accent);
+  circle(24.6, 6.6, 2.7); fill(ctx, accent);
+  circle(27, 12, 6); fill(ctx, PC.white);
+  ellipse(28.6, 10.8, 2, 2.4); fill(ctx, accent);
+  circle(28.8, 10.4, 0.7); fill(ctx, PC.white);
+  circle(32, 13, 1.1); fill(ctx, PC.pandaBlack);
+  rounded(16.5, 16, 4.5, 9, 2.2); fill(ctx, accent);
+  ctx.restore();
+}
+
+function drawHeadMark(ctx, rect, earColor = PC.pandaBlack, accessory = "none", expression = "content") {
+  const size = Math.min(rect.w, rect.h);
+  const s = size / 24;
+  const ox = rect.x + rect.w / 2 - 12 * s, oy = rect.y + rect.h / 2 - 12 * s;
+  const pt = (x, y) => [ox + x * s, oy + y * s];
+  const circle = (cx, cy, r) => ellP(ctx, ox + (cx - r) * s, oy + (cy - r) * s, 2 * r * s, 2 * r * s);
+  const ellipse = (cx, cy, rx, ry) => ellP(ctx, ox + (cx - rx) * s, oy + (cy - ry) * s, 2 * rx * s, 2 * ry * s);
+  const M = (x, y) => ctx.moveTo(...pt(x, y));
+  const L = (x, y) => ctx.lineTo(...pt(x, y));
+  const Q = (x, y, cx, cy) => ctx.quadraticCurveTo(...pt(cx, cy), ...pt(x, y));
+
+  if (accessory === "tail") {
+    ctx.beginPath(); M(19.5, 16); Q(23, 18.5, 23, 14.5); Q(20, 19.5, 21, 20); fill(ctx, PC.kinEmber);
+  }
+  if (accessory === "leaf") {
+    ctx.beginPath(); M(21.5, 2.5); Q(23.5, 6, 24.5, 3.5); Q(21.5, 2.5, 21.5, 5); ctx.closePath(); fill(ctx, PC.kinMoss);
+  }
+  circle(5, 4.6, 3.5); fill(ctx, earColor);
+  circle(19, 4.6, 3.5); fill(ctx, earColor);
+  circle(12, 13, 9); fill(ctx, PC.white);
+  ellipse(8.3, 11.4, 2.5, 2.9); fill(ctx, PC.pandaBlack);
+  ellipse(15.7, 11.4, 2.5, 2.9); fill(ctx, PC.pandaBlack);
+  circle(8.3, 11, 0.8); fill(ctx, PC.white);
+  circle(15.7, 11, 0.8); fill(ctx, PC.white);
+  ellipse(12, 16.4, 1.7, 1.2); fill(ctx, PC.pandaBlack);
+
+  ctx.beginPath();
+  if (expression === "content") { M(9.5, 18.2); Q(14.5, 18.2, 12, 19.6); }
+  else if (expression === "grin") { M(8.7, 17.8); Q(15.3, 17.8, 12, 20.6); }
+  else { M(9.5, 18.4); Q(14.8, 17.6, 12.5, 19.8); }
+  ctx.strokeStyle = css(op(PC.pandaBlack, 0.55)); ctx.lineWidth = 0.9 * s; ctx.lineCap = "round"; ctx.stroke();
+
+  if (accessory === "collar") {
+    ctx.beginPath(); M(4.5, 19.5); Q(19.5, 19.5, 12, 23.5);
+    ctx.strokeStyle = css(PC.green); ctx.lineWidth = 2 * s; ctx.lineCap = "round"; ctx.stroke();
+  } else if (accessory === "scarf") {
+    ctx.beginPath(); M(5, 19); Q(19, 19, 12, 22.5);
+    ctx.strokeStyle = css(PC.kinAmber); ctx.lineWidth = 2.4 * s; ctx.lineCap = "round"; ctx.stroke();
+    ctx.beginPath(); M(10.5, 20.5); L(9, 24); L(12, 21.5); ctx.closePath(); fill(ctx, PC.kinAmber);
+  }
+}
+
+// MenuView.PandaFaceIcon
+function drawPandaFaceIcon(ctx, w, h) {
+  const s = Math.min(w / 34, h / 26);
+  const circle = (cx, cy, r) => ellP(ctx, (cx - r) * s, (cy - r) * s, 2 * r * s, 2 * r * s);
+  const ellipse = (cx, cy, rx, ry) => ellP(ctx, (cx - rx) * s, (cy - ry) * s, 2 * rx * s, 2 * ry * s);
+  circle(6, 5, 4.2); fill(ctx, PC.pandaBlack);
+  circle(28, 5, 4.2); fill(ctx, PC.pandaBlack);
+  circle(17, 13, 11); fill(ctx, PC.white);
+  ellipse(11, 12, 3.2, 4); fill(ctx, PC.pandaBlack);
+  ellipse(23, 12, 3.2, 4); fill(ctx, PC.pandaBlack);
+  circle(11, 12.5, 1); fill(ctx, PC.white);
+  circle(23, 12.5, 1); fill(ctx, PC.white);
+  ellipse(17, 17.5, 1.6, 1.1); fill(ctx, PC.pandaBlack);
+}
+
+// ---------------------------------------------------------------------------------------------
+// GameView.swift render() — Canvas port. `gs` mirrors GameState; `t` is timeIntervalSinceReferenceDate.
+// ---------------------------------------------------------------------------------------------
+const GROUND_OFFSET = 40;
+
+function seasonOf(meters) { return ["spring", "summer", "autumn", "winter"][Math.floor(meters / 150) % 4]; }
+
+function renderGame(ctx, size, gs, t) {
+  const groundY = size.h - GROUND_OFFSET - gs.currentTerraceHeight;
+  const baseGroundY = size.h - GROUND_OFFSET;
+  const meters = Math.floor(gs.distance / 10);
+  const season = seasonOf(meters);
+  const accent = SEASON_ACCENT[season];
+  const groundOffset = gs.distance % 20;
+
+  if (gs.world === "bambooGrove") {
+    renderSeasonSky(ctx, size, season);
+    renderBambooForest(ctx, size, baseGroundY, season, gs.distance);
+    renderBambooWeather(ctx, size, season, t);
+    renderSeasonBird(ctx, size, season, t);
+  } else if (gs.world === "mistTerraces") {
+    renderSeasonSky(ctx, size, season);
+    renderMistBackdrop(ctx, size, baseGroundY, season, gs.distance);
+    renderMistWeather(ctx, size, season, t);
+    renderSeasonBird(ctx, size, season, t);
+  }
+
+  if (gs.world === "mistTerraces") {
+    renderTerraces(ctx, size, gs, season);
+  } else {
+    rectP(ctx, 0, groundY, size.w, 1); fill(ctx, op(accent, 0.5));
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(-20 + (20 - groundOffset), groundY - 6);
+    ctx.lineTo(size.w + 20, groundY - 6);
+    ctx.setLineDash([10, 10]); ctx.lineWidth = 2; ctx.strokeStyle = css(op(accent, 0.55)); ctx.stroke();
+    ctx.restore();
+    rectP(ctx, 0, groundY, size.w, size.h - groundY); fill(ctx, op(accent, 0.05));
+  }
+
+  // renderShadow
+  {
+    const hf = Math.max(0, 1 - gs.dino.y / 60);
+    const cx = gs.dino.x + 24 / 2;
+    const w = 24 * hf;
+    ellP(ctx, cx - w / 2, groundY - 2, w, 4); fill(ctx, op(PC.white, 0.12 * hf));
+  }
+
+  // renderObstacles
+  gs.obstacles.forEach((o, index) => {
+    const rect = { x: o.x, y: groundY - o.h, w: o.w, h: o.h };
+    if (gs.world === "bambooGrove") renderBambooStalk(ctx, rect, index);
+  });
+
+  // renderShoots (relative to the base ground line)
+  for (const s of gs.shoots) {
+    const cx = s.x, cy = baseGroundY - s.gh;
+    ctx.save();
+    ctx.shadowColor = css(op(PC.greenPale, 0.7)); ctx.shadowBlur = 4 * 2 * DPR;
+    ellP(ctx, cx - s.r, cy - s.r, s.r * 2, s.r * 2); fill(ctx, PC.greenPale);
+    ctx.restore();
+  }
+
+  // renderPanda
+  {
+    const ph = 22 * (1 - gs.dino.duck * 0.65);
+    const pw = ph * 36 / 26;
+    const footY = groundY - gs.dino.y;
+    const rect = { x: gs.dino.x, y: footY - ph, w: pw, h: ph };
+    if (gs.powerUpActive) {
+      ellP(ctx, rect.x - 5, rect.y - 5, rect.w + 10, rect.h + 10);
+      ctx.strokeStyle = css(op(PC.greenMint, 0.6)); ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    drawPanda(ctx, rect, gs.dino.y > 0 || gs.dino.jumping ? -8 : 0, gs.kinAccent);
+  }
+
+  renderHUD(ctx, size, gs, meters, season);
+
+  // renderFloatingRewards
+  for (const r of gs.floating || []) {
+    const p = r.progress;
+    const opacity = p >= 1 ? 0 : p > 0.6 ? 1 - (p - 0.6) / 0.4 : 1;
+    if (opacity <= 0) continue;
+    drawText(ctx, r.text, F.numeral(10, "semibold"), op(r.color, opacity), r.x, r.y + p * -30);
+  }
+}
+
+function seasonSkyColors(season) {
+  return {
+    spring: [col(0x2A4A5E), col(0x2C4E63), col(0x3E6478)],
+    summer: [col(0x1E4A55), col(0x20505C), col(0x2E6672)],
+    autumn: [col(0x33485C), col(0x3A5266), col(0x4C6478)],
+    winter: [col(0x3D5C73), col(0x456678), col(0x5C808F)],
+  }[season];
+}
+
+function renderSeasonSky(ctx, size, season) {
+  rectP(ctx, 0, 0, size.w, size.h);
+  ctx.fillStyle = linGrad(ctx, seasonSkyColors(season), 0, 0, 0, size.h); ctx.fill();
+  rectP(ctx, 0, 0, size.w, size.h * 0.28);
+  const g = ctx.createRadialGradient(size.w * 0.35, 0, 0, size.w * 0.35, 0, size.w * 0.7);
+  g.addColorStop(0, css(op(PC.greenMint, 0.14))); g.addColorStop(1, css(CLEAR));
+  ctx.fillStyle = g; ctx.fill();
+}
+
+function renderSeasonBird(ctx, size, season, t) {
+  const period = { spring: 7, summer: 6, autumn: 8, winter: 9 }[season];
+  const tt = (t % period) / period;
+  if (tt >= 0.4) return;
+  const x = (tt / 0.4) * (size.w + 20) - 10;
+  const y = size.h * 0.14;
+  const flap = Math.sin(t * 18) * 2;
+  ctx.beginPath();
+  ctx.moveTo(x, y + flap); ctx.lineTo(x + 6, y - 2); ctx.lineTo(x + 7, y); ctx.lineTo(x + 8, y - 2); ctx.lineTo(x + 14, y + flap);
+  ctx.strokeStyle = css(op(PC.greenIce, 0.7)); ctx.lineWidth = 1.2; ctx.lineCap = "butt"; ctx.lineJoin = "miter"; ctx.stroke();
+}
+
+function renderBambooForest(ctx, size, groundY, season, distance) {
+  const stalkColors = {
+    spring: [col(0x4E8C5C, 0.42), col(0x6FBE7E, 0.6)],
+    summer: [col(0x4E8C5C, 0.55), op(PC.greenPale, 0.66)],
+    autumn: [col(0x96AFBE, 0.34), op(PC.greenIce, 0.44)],
+    winter: [col(0x96AFBE, 0.3), op(PC.white, 0.4)],
+  }[season];
+  const tileWidth = 9;
+  const scrollSpeed = season === "summer" ? 0.22 : 0.15;
+  const offset = (distance * scrollSpeed) % (tileWidth * 2);
+  const heights = [58, 74, 50, 88, 64, 96, 54, 80, 62, 102, 70, 52, 86, 66, 94, 58, 76, 62];
+  let x = -offset - tileWidth * 2, i = 0;
+  while (x < size.w + tileWidth) {
+    const h = heights[i % heights.length] * (groundY / 150);
+    rectP(ctx, x, groundY - h, 2, h); fill(ctx, i % 3 === 0 ? stalkColors[1] : stalkColors[0]);
+    x += tileWidth; i += 1;
+  }
+}
+
+function renderBambooWeather(ctx, size, season, t) {
+  const mod = (a, b) => a % b;
+  if (season === "spring") {
+    for (const [xf, period, phase] of [[0.12, 1.5, 0], [0.31, 1.3, 0.4], [0.56, 1.7, 0.8], [0.78, 1.4, 1.1], [0.92, 1.6, 0.2]]) {
+      const p = mod(t + phase, period) / period;
+      rectP(ctx, size.w * xf, p * size.h * 0.5, 1, 5); fill(ctx, op(PC.greenIce, 0.45));
+    }
+    for (const [xf, period, phase] of [[0.43, 4.4, 0], [0.71, 5.2, 1.6]]) {
+      const p = mod(t + phase, period) / period;
+      ellP(ctx, size.w * xf, p * size.h, 3, 3); fill(ctx, op(PC.white, 0.6));
+    }
+  } else if (season === "summer") {
+    for (const [xf, yf, period, phase] of [[0.35, 0.34, 1.6, 0], [0.72, 0.46, 1.9, 0.4], [0.2, 0.58, 2.2, 0.9], [0.86, 0.4, 1.4, 1.3]]) {
+      const pulse = (Math.sin((t + phase) / period * 2 * Math.PI) + 1) / 2;
+      ellP(ctx, size.w * xf, size.h * yf, 3, 3); fill(ctx, op(PC.greenMint, 0.35 + 0.45 * pulse));
+    }
+  } else if (season === "autumn") {
+    for (const [xf, period, phase] of [[0.16, 3.2, 0], [0.4, 2.6, 0.5], [0.51, 3.8, 0.9], [0.71, 2.9, 1.4], [0.89, 3.4, 2.0]]) {
+      const p = mod(t + phase, period) / period;
+      ellP(ctx, size.w * xf, p * size.h, 4, 4); fill(ctx, op(PC.greenMint, 0.55));
+    }
+  } else {
+    for (const [xf, period, phase] of [[0.1, 4.6, 0], [0.26, 5.4, 0.6], [0.44, 4.2, 1.2], [0.6, 5.8, 1.8], [0.76, 4.8, 2.4], [0.92, 5.2, 3.0]]) {
+      const p = mod(t + phase, period) / period;
+      ellP(ctx, size.w * xf, p * size.h, 2.5, 2.5); fill(ctx, op(PC.white, 0.75));
+    }
+  }
+}
+
+function renderMistBackdrop(ctx, size, groundY, season, distance) {
+  const [far, near] = {
+    spring: [col(0x7894A4, 0.3), col(0x92ACBA, 0.42)],
+    summer: [col(0x6E9696, 0.32), col(0x8AB2B0, 0.44)],
+    autumn: [col(0x8C9EAA, 0.26), col(0xA6B8C4, 0.34)],
+    winter: [col(0xA8BECC, 0.3), col(0xC4D8E4, 0.4)],
+  }[season];
+  function ridge(baseY, height, tileWidth, offset) {
+    ctx.beginPath();
+    ctx.moveTo(-tileWidth, baseY);
+    let x = -tileWidth - offset, toggle = false;
+    while (x < size.w + tileWidth) {
+      ctx.lineTo(x + tileWidth * 0.5, baseY - (toggle ? height : height * 0.55));
+      x += tileWidth * 0.5; toggle = !toggle;
+    }
+    ctx.lineTo(size.w + tileWidth, baseY); ctx.lineTo(size.w + tileWidth, size.h); ctx.lineTo(-tileWidth, size.h);
+    ctx.closePath();
+  }
+  ridge(groundY + 4, 58, 40, (distance * 0.06) % 40); fill(ctx, far);
+  ridge(groundY + 4, 40, 28, (distance * 0.11) % 28); fill(ctx, near);
+}
+
+function renderMistWeather(ctx, size, season, t) {
+  if (season === "spring") {
+    for (const [xf, yf, period, phase] of [[0.3, 0.3, 1.4, 0], [0.68, 0.44, 1.6, 0.5]]) {
+      const p = ((t + phase) % period) / period;
+      rectP(ctx, size.w * xf, size.h * yf + p * size.h * 0.22, 1, 12); fill(ctx, op(PC.greenIce, 0.4));
+    }
+  } else if (season === "summer") {
+    const pulse = (Math.sin(t * 1.8) + 1) / 2;
+    rectP(ctx, 0, size.h * 0.42, size.w, 10); fill(ctx, op(PC.greenMint, 0.06 + 0.05 * pulse));
+  } else if (season === "autumn") {
+    const drift = (Math.sin(t * 0.5) + 1) / 2 * 10;
+    rectP(ctx, -10 + drift, size.h * 0.5, size.w + 20, 22); fill(ctx, op(PC.white, 0.05));
+  } else {
+    for (const [xf, period, phase] of [[0.14, 4.6, 0], [0.42, 5.4, 0.8], [0.68, 4.2, 1.6], [0.9, 5.8, 2.4]]) {
+      const p = ((t + phase) % period) / period;
+      ellP(ctx, size.w * xf, p * size.h, 2.5, 2.5); fill(ctx, op(PC.white, 0.7));
+    }
+  }
+}
+
+function renderTerraces(ctx, size, gs, season) {
+  const cap = { spring: col(0x8FD69B), summer: PC.green, autumn: PC.greenMint, winter: PC.white }[season];
+  const body = { spring: col(0x92ACBA, 0.85), summer: col(0x8AB2B0, 0.85), autumn: col(0xA6B8C4, 0.7), winter: col(0xC4D8E4, 0.85) }[season];
+  const slabHeight = 18;
+  gs.terraces.forEach((tr, index) => {
+    const stepY = size.h - GROUND_OFFSET - tr.hOff;
+    if (!(stepY < size.h)) return;
+    const fog = season === "autumn" ? Math.max(0.3, 1 - index * 0.22) : 1;
+    const b = { x: tr.x, y: stepY + 2.5, w: tr.w, h: slabHeight };
+    ellP(ctx, b.x + b.w * 0.15, Math.min(size.h - 3, b.y + b.h + 10), b.w * 0.7, 3); fill(ctx, op(PC.ink, 0.28 * fog));
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(b.x + b.w, b.y);
+    ctx.lineTo(b.x + b.w - b.w * 0.14, b.y + b.h * 0.62);
+    ctx.lineTo(b.x + b.w * 0.58, b.y + b.h);
+    ctx.lineTo(b.x + b.w * 0.34, b.y + b.h * 0.66);
+    ctx.lineTo(b.x + b.w * 0.1, b.y + b.h * 0.48);
+    ctx.closePath();
+    fill(ctx, op(body, fog));
+    rectP(ctx, tr.x, stepY, tr.w, 2.5); fill(ctx, op(cap, fog));
+    if (season === "winter") {
+      for (const f of [0.18, 0.62]) { rectP(ctx, tr.x + tr.w * f, stepY + 2, 1, 7); fill(ctx, op(PC.greenIce, 0.6 * fog)); }
+    }
+  });
+}
+
+function renderBambooStalk(ctx, rect, index) {
+  rrP(ctx, rect.x, rect.y, rect.w, rect.h, 2);
+  ctx.fillStyle = linGrad(ctx, [PC.green, PC.greenDeep], rect.x + rect.w / 2, rect.y, rect.x + rect.w / 2, rect.y + rect.h); ctx.fill();
+  const bandCount = Math.max(1, Math.floor(rect.h / 11));
+  for (let band = 1; band <= bandCount; band++) {
+    const y = rect.y + band * (rect.h / (bandCount + 1));
+    rectP(ctx, rect.x, y, rect.w, 1); fill(ctx, op(PC.ink, 0.5));
+  }
+  const flagY = rect.y + 2;
+  const right = index % 2 === 0;
+  ctx.beginPath();
+  if (right) { ctx.moveTo(rect.x, flagY); ctx.lineTo(rect.x + 11, flagY + 2.5); ctx.lineTo(rect.x, flagY + 5); }
+  else { const mx = rect.x + rect.w; ctx.moveTo(mx, flagY); ctx.lineTo(mx - 11, flagY + 2.5); ctx.lineTo(mx, flagY + 5); }
+  ctx.closePath();
+  fill(ctx, right ? PC.greenPale : PC.greenDeep);
+}
+
+function renderHUD(ctx, size, gs, meters, season) {
+  drawText(ctx, String(gs.score), F.numeral(17, "medium"), PC.white, 9 + 15, 9 + 8);
+  ellP(ctx, 9, 28, 5, 5); fill(ctx, PC.greenPale);
+  drawText(ctx, String(gs.shootsCollected), F.numeral(9), op(PC.white, 0.6), 9 + 8 + 8, 28 + 3, "leading");
+
+  // renderChargeRing
+  const ring = { x: size.w - 9 - 26, y: 8, w: 26, h: 26 };
+  const cx = ring.x + 13, cy = ring.y + 13;
+  ellP(ctx, ring.x, ring.y, 26, 26); ctx.strokeStyle = css(op(PC.white, 0.12)); ctx.lineWidth = 2.5; ctx.stroke();
+  const frac = gs.powerCharge / 100;
+  if (frac > 0) {
+    ctx.beginPath(); ctx.arc(cx, cy, 13, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac);
+    ctx.strokeStyle = css(PC.green); ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.stroke(); ctx.lineCap = "butt";
+  }
+  drawText(ctx, String(Math.floor(gs.powerCharge)), F.numeral(8, "medium"), PC.green, cx, cy);
+
+  // renderHoldButton
+  const ready = gs.powerCharge >= 100;
+  const hb = { x: size.w - 9 - 22, y: 39, w: 22, h: 22 };
+  const o = ready ? 1 : 0.4;
+  rrP(ctx, hb.x, hb.y, 22, 22, 7); fill(ctx, op(PC.green, ready ? 0.16 : 0.08));
+  rrP(ctx, hb.x, hb.y, 22, 22, 7); ctx.strokeStyle = css(op(PC.green, o)); ctx.lineWidth = 0.5; ctx.stroke();
+  const tx = hb.x + 11 - 4, ty = hb.y + 11 - 4;
+  ctx.beginPath(); ctx.moveTo(tx + 4, ty); ctx.lineTo(tx + 8, ty + 8); ctx.lineTo(tx, ty + 8); ctx.closePath(); fill(ctx, op(PC.green, o));
+  drawText(ctx, "HOLD", F.numeral(6.5), op(PC.green, o * 0.85), hb.x + 11, hb.y + 22 + 6);
+
+  // renderSeasonBanner
+  if (gs.bannerOpacity > 0) {
+    drawText(ctx, `${season.toUpperCase()} · ${meters}m`, F.numeral(8, "semibold"), op(PC.greenIce, gs.bannerOpacity), size.w / 2, 64);
+  }
+
+  // renderSeasonProgressBar
+  const bar = { x: 9, y: size.h - 8, w: size.w - 18, h: 2 };
+  rrP(ctx, bar.x, bar.y, bar.w, bar.h, 1); fill(ctx, op(PC.white, 0.1));
+  const fw = bar.w * ((meters % 150) / 150);
+  if (fw > 0) {
+    rrP(ctx, bar.x, bar.y, fw, bar.h, 1);
+    ctx.fillStyle = linGrad(ctx, [PC.green, PC.greenMint, PC.green], bar.x, 0, bar.x + fw, 0); ctx.fill();
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// MarketView.swift WorldTileScene — Canvas port
+// ---------------------------------------------------------------------------------------------
+function drawWorldTileScene(ctx, size, world, season) {
+  const groundY = size.h * 0.56;
+  const sky = {
+    bambooGrove: { spring: [0x2A4A5E, 0x3E6478], summer: [0x1E4A55, 0x2E6672], autumn: [0x33485C, 0x4C6478], winter: [0x3D5C73, 0x5C808F] }[season],
+    mistTerraces: [0x2A4A5E, 0x3E6478], snowPass: [0x203044, 0x3A5468], lanternRow: [0x2E1E30, 0x4A2E3C], ashHollow: [0x2E1712, 0x4C2418],
+  }[world].map(h => col(h));
+  rectP(ctx, 0, 0, size.w, groundY); ctx.fillStyle = linGrad(ctx, sky, 0, 0, 0, groundY); ctx.fill();
+
+  const stalk = (x, h, c, flagRight) => {
+    const r = { x, y: groundY - h, w: 3, h };
+    rrP(ctx, r.x, r.y, 3, h, 1); fill(ctx, c);
+    rectP(ctx, r.x, r.y + h * 0.45, 3, 1); fill(ctx, op(PC.ink, 0.6));
+    if (flagRight === null) return;
+    ctx.beginPath();
+    if (flagRight) { ctx.moveTo(r.x, r.y + 1); ctx.lineTo(r.x + 7, r.y + 2.5); ctx.lineTo(r.x, r.y + 4); }
+    else { ctx.moveTo(r.x + 3, r.y + 3); ctx.lineTo(r.x + 3 - 7, r.y + 4.5); ctx.lineTo(r.x + 3, r.y + 6); }
+    ctx.closePath(); fill(ctx, flagRight ? col(0xA8D8B0) : PC.greenDeep);
+  };
+  const platform = (x, gy, w, h, c) => {
+    rrP(ctx, x, gy - h, w, h, 2); fill(ctx, c);
+    rectP(ctx, x, gy - h, w, 1.5); fill(ctx, op(PC.white, 0.4));
+  };
+  const jumpArc = (f, t) => {
+    ctx.save(); ctx.beginPath(); ctx.moveTo(f[0], f[1]);
+    ctx.quadraticCurveTo((f[0] + t[0]) / 2, Math.min(f[1], t[1]) - 6, t[0], t[1]);
+    ctx.setLineDash([2, 2]); ctx.lineWidth = 1; ctx.strokeStyle = css(op(PC.white, 0.3)); ctx.stroke(); ctx.restore();
+  };
+  const fallingIcicle = (x, y, w, h, c) => { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x + w, y); ctx.closePath(); fill(ctx, c); };
+  const groundIcicle = (x, w, h) => {
+    ctx.beginPath(); ctx.moveTo(x, groundY); ctx.lineTo(x + w / 2, groundY - h); ctx.lineTo(x + w, groundY); ctx.closePath();
+    ctx.fillStyle = linGrad(ctx, [PC.greenIce, PC.greenMint], x + w / 2, groundY - h, x + w / 2, groundY); ctx.fill();
+  };
+  const lantern = (x, reach, large) => {
+    const w = large ? 10 : 7, bh = large ? 11 : 8;
+    rectP(ctx, x + w / 2 - 0.5, 0, 1, groundY - reach); fill(ctx, op(PC.white, 0.3));
+    const b = { x, y: groundY - reach, w, h: bh };
+    ctx.save(); ctx.shadowColor = css(op(PC.green, 0.5)); ctx.shadowBlur = (large ? 5 : 3) * 2 * DPR;
+    rrP(ctx, b.x, b.y, w, bh, 2.5); fill(ctx, PC.green); ctx.restore();
+    ellP(ctx, b.x + w * 0.28, b.y + bh * 0.22, w * 0.44, bh * 0.56); fill(ctx, op(PC.greenPale, 0.65));
+  };
+  const ridge = (steps, height, lowFactor, c) => {
+    ctx.beginPath(); ctx.moveTo(0, groundY);
+    const step = size.w / steps;
+    for (let i = 0; i <= steps; i++) ctx.lineTo(i * step, groundY - height * (i % 2 === 0 ? 1 : lowFactor));
+    ctx.lineTo(size.w, groundY); ctx.closePath(); fill(ctx, c);
+  };
+  const crack = (x, w) => {
+    ctx.beginPath(); ctx.moveTo(x, groundY); ctx.lineTo(x + w * 0.3, groundY + 2); ctx.lineTo(x + w * 0.55, groundY); ctx.lineTo(x + w, groundY + 3);
+    ctx.strokeStyle = css(op(PC.white, 0.7)); ctx.lineWidth = 1; ctx.stroke();
+  };
+
+  if (world === "bambooGrove") {
+    const hs = [10, 15, 8, 18, 11, 20, 9, 16];
+    let x = 3, i = 0;
+    while (x < size.w) {
+      const h = hs[i % hs.length];
+      rectP(ctx, x, groundY - h, i % 3 === 0 ? 2 : 1, h); fill(ctx, i % 3 === 0 ? op(PC.green, 0.28) : op(PC.green, 0.18));
+      x += 7.5; i++;
+    }
+    rectP(ctx, 0, groundY, size.w, 1); fill(ctx, PC.green);
+    stalk(9, 20, col(0x8FD69B), true);
+    stalk(15, 14, PC.green, null);
+    stalk(31, 17, col(0x8FD69B), false);
+  } else if (world === "mistTerraces") {
+    ridge(6, 16, 0.55, col(0x92ACBA, 0.34));
+    ridge(6, 11, 0.55, col(0xC4D8E4, 0.26));
+    platform(4, groundY, 14, 9, PC.grey);
+    platform(24, groundY - 9, 13, 9, col(0xC3CAC3));
+    platform(42, groundY - 3, 13, 9, PC.grey);
+    jumpArc([16, groundY - 10], [28, groundY - 19]);
+    jumpArc([35, groundY - 19], [45, groundY - 13]);
+  } else if (world === "snowPass") {
+    ridge(5, 14, 0.5, op(PC.white, 0.16));
+    ridge(5, 9, 0.5, op(PC.white, 0.1));
+    rectP(ctx, 0, groundY, size.w, 1); fill(ctx, op(PC.greenIce, 0.6));
+    fallingIcicle(8, 5, 4, 10, op(PC.greenMint, 0.55));
+    fallingIcicle(34, 3, 3, 8, op(PC.greenIce, 0.5));
+    groundIcicle(22, 7, 14);
+  } else if (world === "lanternRow") {
+    for (let x = 8; x < size.w; x += 18) { ellP(ctx, x - 6, groundY - 4, 12, 6); fill(ctx, op(PC.green, 0.1)); }
+    rectP(ctx, 0, groundY, size.w, 1); fill(ctx, op(PC.green, 0.5));
+    lantern(8, 20, false); lantern(26, 27, true); lantern(44, 18, false);
+  } else if (world === "ashHollow") {
+    ridge(6, 12, 7 / 12, op(PC.white, 0.22));
+    for (const [x, y] of [[10, 14], [24, 8], [38, 18]]) { ellP(ctx, x, y, 1.6, 1.6); fill(ctx, op(PC.white, 0.8)); }
+    rectP(ctx, 0, groundY, size.w, 1); fill(ctx, op(PC.white, 0.6));
+    for (const [x, s, yo] of [[12, 6, 6], [26, 5, 5], [19, 4, 10]]) { rrP(ctx, x, groundY - yo, s, s, 1.5); fill(ctx, op(PC.white, 0.14)); }
+    crack(6, 22); crack(30, 18);
+  }
+  // Vignette
+  rectP(ctx, 0, 0, size.w, size.h);
+  ctx.fillStyle = linGrad(ctx, [CLEAR, PC.inkSunken], 0, 0, 0, size.h, [0.62, 0.88]); ctx.fill();
+}
+
+// ---------------------------------------------------------------------------------------------
+// DOM helpers for SwiftUI views
+// ---------------------------------------------------------------------------------------------
+const screen = document.getElementById("screen");
+screen.style.width = W + "px"; screen.style.height = H + "px";
+
+function el(tag, style = "", html = "") {
+  const e = document.createElement(tag);
+  e.style.cssText = style; e.innerHTML = html; return e;
+}
+function text(str, font, color, extra = "") {
+  return `<span class="t" style="font:${font};color:${css(color)};${extra}">${str}</span>`;
+}
+function coinDot(size) {
+  const inner = size * 0.45;
+  return `<span style="position:relative;display:inline-block;flex:none;width:${size}px;height:${size}px;border-radius:50%;background:${css(PC.greenMint)}">` +
+    `<span style="position:absolute;left:${(size - inner) / 2}px;top:${(size - inner) / 2}px;width:${inner}px;height:${inner}px;border-radius:50%;background:${css(op(PC.ink, 0.35))}"></span></span>`;
+}
+function backButton(label) {
+  return `<div class="row" style="height:20px;gap:2px;color:${css(PC.green)}">` +
+    text("‹", F.numeral(13, "semibold"), PC.green) + text(label, F.heading(9.5, "semibold"), PC.green) + `</div>`;
+}
+function circleDot(size, color) {
+  return `<span style="display:inline-block;flex:none;width:${size}px;height:${size}px;border-radius:50%;background:${css(color)}"></span>`;
+}
+function outlineDot(size, color, lw) {
+  return `<span style="display:inline-block;flex:none;width:${size}px;height:${size}px;border-radius:50%;box-shadow:inset 0 0 0 ${lw}px ${css(color)}"></span>`;
+}
+// A container covering the safe area (what a SwiftUI view's body is laid out in).
+function safeArea() {
+  const e = el("div", `position:absolute;left:0;right:0;top:${SAFE_TOP}px;height:${H - SAFE_TOP - SAFE_BOTTOM}px;`);
+  screen.appendChild(e);
+  return e;
+}
+function statusClock() {
+  if (!CLOCK) return;
+  const e = el("div", `position:absolute;right:${Math.round(W * 0.075)}px;top:${SAFE_TOP / 2 + 1}px;transform:translateY(-50%);` +
+    `font:${CLOCK}px SysSB;letter-spacing:-0.2px;color:${css(PC.white)};line-height:1`, "10:09");
+  screen.appendChild(e);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Screens
+// ---------------------------------------------------------------------------------------------
+const SCREENS = {};
+
+// MenuView.swift
+SCREENS.menu = () => {
+  const safe = safeArea();
+  safe.style.display = "flex"; safe.style.flexDirection = "column"; safe.style.justifyContent = "center";
+  const questDone = PLAYER.questProgress >= PLAYER.questTarget;
+  const pill = (title, dot) => `<div class="row" style="flex:1 1 0;justify-content:center;gap:4px;height:25px;border-radius:12.5px;background:${css(PC.inkRaised)};box-shadow:inset 0 0 0 0.5px ${css(op(PC.white, 0.14))}">` +
+    text(title, F.heading(11.5, "semibold"), PC.white) + (dot || "") + `</div>`;
+  const streakDots = Array.from({ length: 7 }, (_, i) => circleDot(4.5, i < Math.min(PLAYER.streak, 7) ? PC.green : op(PC.white, 0.15))).join("");
+
+  const content = el("div", `margin-top:-30px;padding:0 10px 4px;display:flex;flex-direction:column;align-items:center;`);
+  content.innerHTML = `
+    <div class="row" style="width:100%">
+      <div class="row" style="gap:6px;padding:4px 9px;border-radius:999px;background:${css(PC.inkRaised)};box-shadow:inset 0 0 0 0.5px ${css(op(PC.white, 0.18))}">
+        <div class="row" style="gap:3px">${text("★", "600 8px SysSB, DejaVu Sans", op(PC.white, 0.8))}${text("LV " + PLAYER.level, F.numeral(9.5, "semibold"), op(PC.white, 0.85))}</div>
+        <span style="width:1px;height:10px;border-radius:1px;background:${css(op(PC.white, 0.18))}"></span>
+        <div class="row" style="gap:4px">${coinDot(9)}${text(PLAYER.coins, F.numeral(9.5, "medium"), PC.greenMint)}</div>
+      </div>
+      <div class="spacer"></div>
+    </div>
+    <div class="col" style="align-items:center;gap:1px;margin-top:2px">
+      <div id="face" style="position:relative;width:22px;height:17px"></div>
+      <div class="row" style="gap:3px">${text("PANDA", F.heading(15, "heavy"), PC.white)}${text("PANDA", F.heading(15, "heavy"), PC.green)}</div>
+    </div>
+    <div class="row" style="gap:4px;margin-top:3px">${circleDot(5, PC.green)}${text(`${PLAYER.calendarSeason} · BEST ${PLAYER.highScore}`, F.numeral(8.5), op(PC.white, 0.55))}</div>
+    <div class="row" style="width:100%;margin-top:3px">${text(`${PLAYER.streak} DAY STREAK`, F.numeral(8.5, "semibold"), op(PC.white, 0.7))}<div class="spacer"></div><div class="row" style="gap:3px">${streakDots}</div></div>
+    <div class="row" style="width:100%;margin-top:6px;height:32px;border-radius:14px;background:${css(PC.green)};justify-content:center">${text("RUN", F.heading(16, "heavy"), PC.ink)}</div>
+    <div class="row" style="width:100%;margin-top:4px;gap:6px">
+      ${pill("Market", null)}
+      ${pill("Quest", questDone ? circleDot(5, PC.green) : outlineDot(5, op(PC.white, 0.35), 1))}
+    </div>`;
+  safe.appendChild(content);
+  const { c, ctx } = makeCanvas(22, 17);
+  drawPandaFaceIcon(ctx, 22, 17);
+  content.querySelector("#face").appendChild(c);
+  statusClock();
+};
+
+// MarketView.swift grid
+function marketGrid(tab) {
+  const safe = safeArea();
+  const v = el("div", `position:absolute;left:0;right:0;top:-30px;bottom:0;display:flex;flex-direction:column;`);
+  v.innerHTML = `
+    <div style="padding:0 8px">${backButton("Home")}</div>
+    <div class="row" style="padding:2px 8px 5px">${text("Market", F.heading(12, "heavy"), PC.white, "letter-spacing:0.2px")}<div class="spacer"></div>
+      <div class="row" style="gap:3px">${coinDot(9)}${text(PLAYER.coins, F.numeral(10, "medium"), PC.greenMint)}</div></div>
+    <div class="row" style="gap:3px;padding:0 8px 6px">
+      ${["Pandas", "Worlds"].map(n => {
+        const sel = (n === "Pandas") === (tab === "kin");
+        return `<div class="row" style="flex:1 1 0;justify-content:center;height:18px;border-radius:6px;background:${css(sel ? PC.white : PC.inkRaised)}">${text(n, F.heading(8.5, "semibold"), sel ? PC.ink : op(PC.white, 0.6))}</div>`;
+      }).join("")}
+    </div>
+    <div id="scroll" style="flex:1 1 0;overflow:hidden;margin-bottom:-${SAFE_BOTTOM}px">
+      <div id="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:0 8px 8px"></div>
+    </div>`;
+  safe.appendChild(v);
+  const grid = v.querySelector("#grid");
+
+  function badgeHTML(isOwned, isEquipped, canPurchase, cost, reqLevel, hasLevel) {
+    if (isEquipped) return circleDot(5, PC.green);
+    if (isOwned) return text("OWNED", F.numeral(6.5), op(PC.white, 0.5));
+    if (!hasLevel) return text("LV " + reqLevel, F.numeral(7), op(PC.white, 0.35));
+    return `<div class="row" style="gap:2px">${coinDot(7)}${text(cost, F.numeral(7), canPurchase ? PC.greenMint : op(PC.white, 0.35))}</div>`;
+  }
+  function tile(title, caption, isEquipped, badge, glow, drawScene) {
+    const t = el("div", `position:relative;height:68px;border-radius:9px;overflow:hidden;background:${css(PC.inkSunken)};`);
+    t.appendChild(el("div", `position:absolute;inset:0;background:radial-gradient(circle 55px at 70% 25%, ${css(op(glow, 0.14))}, ${css(op(glow, 0))})`));
+    grid.appendChild(t);
+    const w = t.getBoundingClientRect().width;
+    const { c, ctx } = makeCanvas(w, 68);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, 68); ctx.clip();
+    drawScene(ctx, { w, h: 68 });
+    ctx.restore();
+    t.appendChild(c);
+    t.appendChild(el("div", `position:absolute;left:5px;bottom:5px;right:5px;display:flex;flex-direction:column;gap:1px;`,
+      text(title, F.heading(8.5, "semibold"), PC.white, "overflow:hidden;text-overflow:ellipsis") +
+      text(caption, F.numeral(6.5), op(PC.white, 0.42), "letter-spacing:0.3px;overflow:hidden;text-overflow:ellipsis")));
+    t.appendChild(el("div", `position:absolute;right:5px;top:5px;display:flex;`, badge));
+    if (isEquipped) t.appendChild(el("div", `position:absolute;inset:0;border-radius:9px;box-shadow:inset 0 0 0 0.5px ${css(PC.green)}, 0 0 0 0.5px ${css(PC.green)}`));
+  }
+
+  if (tab === "kin") {
+    for (const k of KIN_ORDER) {
+      const d = KIN[k];
+      const owned = owns.kin(k), eq = PLAYER.equippedKin === k;
+      tile(d.name, d.perk || `STAGE ${d.stage} OF 5`, eq,
+        badgeHTML(owned, eq, canPurchaseKin(k), d.cost, d.reqLevel, PLAYER.level >= d.reqLevel), d.ear,
+        (ctx, s) => {
+          const r = { x: s.w * 0.28, y: -6 + s.h * 0.1, w: s.w * 0.44, h: s.h * 0.8 };
+          drawHeadMark(ctx, r, d.ear, d.acc, d.expr);
+        });
+    }
+  } else {
+    for (const w of WORLD_ORDER) {
+      const d = WORLD[w];
+      const owned = owns.world(w), eq = PLAYER.equippedWorld === w;
+      tile(d.name, d.hazard, eq, badgeHTML(owned, eq, canPurchaseWorld(w), d.cost, d.reqLevel, PLAYER.level >= d.reqLevel), d.accent,
+        (ctx, s) => drawWorldTileScene(ctx, s, w, PLAYER.calendarSeason.toLowerCase()));
+    }
+    grid.appendChild(el("div", `height:68px;border-radius:9px;background:${css(PC.inkSunken)};display:flex;align-items:center;justify-content:center;text-align:center;`,
+      `<span style="font:${F.numeral(7.5)};color:${css(op(PC.white, 0.32))};line-height:normal">ONE MORE<br>WORLD AT LV18</span>`));
+  }
+  statusClock();
+}
+SCREENS.marketWorlds = () => marketGrid("worlds");
+SCREENS.marketPandas = () => marketGrid("kin");
+
+// MarketDetailViews.swift KinDetailView
+SCREENS.kinDetail = () => {
+  const k = P.kin || "jadepaw";
+  const d = KIN[k];
+  const isOwned = owns.kin(k), isEquipped = PLAYER.equippedKin === k;
+  const hasLevel = PLAYER.level >= d.reqLevel;
+  const hasWorld = d.reqWorld ? owns.world(d.reqWorld) : true;
+  const canPurchase = canPurchaseKin(k);
+  const safe = safeArea();
+  const v = el("div", `position:absolute;left:0;right:0;top:-30px;padding:9px 10px 8px;display:flex;flex-direction:column;align-items:flex-start;`);
+  const dots = KIN_ORDER.map(s => s === k ? circleDot(5, PC.greenMint) : owns.kin(s) ? circleDot(5, PC.white) : outlineDot(5, op(PC.white, 0.35), 0.5)).join("");
+  const tag = (t, c, bg) => `<span class="t" style="font:${F.numeral(7.5, "medium")};color:${css(c)};background:${css(bg)};padding:2px 6px;border-radius:6px">${t}</span>`;
+  const blocked = !hasLevel || !hasWorld;
+  const title = isEquipped ? "Equipped" : isOwned ? "Equip" : !hasLevel ? `Needs LV ${d.reqLevel}` : !hasWorld ? `Needs ${WORLD[d.reqWorld].name}` : `Unlock ${d.cost}`;
+  const bright = (isOwned && !isEquipped) || (!isOwned && !blocked && canPurchase);
+  const bg = isEquipped ? PC.inkRaised : isOwned ? PC.green : blocked ? PC.inkRaised : canPurchase ? PC.greenMint : PC.inkRaised;
+  const tc = bright ? PC.ink : op(PC.white, isEquipped ? 0.4 : 0.7);
+  const short = Math.max(0, d.cost - PLAYER.coins);
+  const caption = !hasLevel ? `REACH LEVEL ${d.reqLevel} TO UNLOCK` : !hasWorld ? `OWN ${WORLD[d.reqWorld].name.toUpperCase()} TO UNLOCK` :
+    short > 0 ? `${short} MORE COINS NEEDED` : `${PLAYER.coins} IN POUCH · ${Math.max(0, PLAYER.coins - d.cost)} AFTER`;
+  v.innerHTML = `
+    ${backButton("Market")}
+    ${text(`KIN · ${d.stage} OF 5`, F.numeral(8), op(PC.white, 0.4), "letter-spacing:0.9px;margin-top:2px")}
+    <div id="hero" style="position:relative;width:100%;height:74px;border-radius:11px;overflow:hidden;margin-top:4px;background:radial-gradient(circle 90px at 50% 60%, ${css(op(d.ear, 0.16))}, ${css(PC.inkRaised)})">
+      <div class="row" style="position:absolute;left:0;right:0;bottom:5px;justify-content:center;gap:4px;z-index:2">${dots}</div>
+    </div>
+    ${text(d.name, F.heading(16, "heavy"), PC.white, "margin-top:7px")}
+    <div style="margin-top:3px;font:${F.numeral(8.5)};color:${css(op(PC.white, 0.5))};line-height:calc(1em * 1.32 + 1.5px);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${d.tagline}</div>
+    <div class="row" style="gap:4px;margin-top:6px">${d.perk ? tag(d.perk, PC.greenMint, op(PC.greenMint, 0.14)) : ""}${!isOwned && d.reqWorld && !hasWorld ? tag(`NEEDS ${WORLD[d.reqWorld].name.toUpperCase()}`, op(PC.white, 0.6), op(PC.white, 0.08)) : ""}</div>
+    <div style="height:4px"></div>
+    <div class="row" style="width:100%;gap:6px;align-items:flex-start">
+      <div class="col" style="flex:1 1 0;gap:4px;align-items:center">
+        <div class="row" style="width:100%;height:30px;border-radius:10px;padding:0 6px;justify-content:center;gap:4px;background:${css(bg)}">${!isOwned && !blocked ? coinDot(11) : ""}${text(title, F.heading(11, "heavy"), tc)}</div>
+        ${!isOwned ? text(caption, F.numeral(7.5), op(PC.white, 0.38)) : ""}
+      </div>
+      ${isOwned ? `<div class="row" style="width:54px;height:30px;border-radius:10px;justify-content:center;background:${css(PC.greenMint)}">${text("Play", F.heading(12, "heavy"), PC.ink)}</div>` : ""}
+    </div>`;
+  safe.appendChild(v);
+  const hero = v.querySelector("#hero");
+  const hw = hero.getBoundingClientRect().width;
+  const { c, ctx } = makeCanvas(hw, 74);
+  const r = { x: hw * 0.3, y: 74 * 0.16 - 6, w: hw * 0.4, h: 74 * 0.68 };
+  drawHeadMark(ctx, r, d.ear, d.acc, d.expr);
+  hero.insertBefore(c, hero.firstChild);
+  statusClock();
+};
+
+// QuestView.swift
+SCREENS.quest = () => {
+  const safe = safeArea();
+  const p = PLAYER.questProgress, tgt = PLAYER.questTarget, done = p >= tgt;
+  const v = el("div", `position:absolute;left:0;right:0;top:-30px;padding:0 8px 8px;display:flex;flex-direction:column;align-items:stretch;`);
+  const bars = Array.from({ length: tgt }, (_, i) => `<span style="flex:1 1 0;height:4px;border-radius:2px;background:${css(i < p ? PC.green : op(PC.white, 0.12))}"></span>`).join("");
+  v.innerHTML = `
+    <div class="col" style="gap:2px;align-items:flex-start">
+      ${backButton("Home")}
+      <div class="row" style="width:100%;margin-top:2px">${text("Today", F.heading(12, "heavy"), PC.white)}<div class="spacer"></div><div class="row" style="gap:3px">${coinDot(9)}${text(PLAYER.coins, F.numeral(10, "medium"), PC.greenMint)}</div></div>
+      ${text("RESETS IN 7H", F.numeral(7.5), op(PC.white, 0.4))}
+    </div>
+    <div class="col" style="margin-top:6px;padding:8px;border-radius:10px;background:linear-gradient(to bottom right, ${css(op(PC.green, 0.16))}, ${css(PC.inkRaised)})">
+      ${text(done ? "Quest complete" : "Finish three runs", F.heading(11, "semibold"), PC.white)}
+      ${text(done ? "COME BACK TOMORROW FOR A NEW ONE" : `ANY RUN COUNTS · ${p} OF ${tgt}`, F.numeral(7.5), op(PC.white, 0.5), "margin-top:2px")}
+      <div class="row" style="gap:3px;margin-top:6px">${bars}</div>
+      <div class="row" style="margin-top:6px">${text(`+${PLAYER.questXP} XP · +${PLAYER.questCoins}`, F.numeral(8, "medium"), PC.green)}<div class="spacer"></div>${done ? "" : text("Run →", F.heading(8.5, "semibold"), PC.green)}</div>
+    </div>`;
+  safe.appendChild(v);
+  statusClock();
+};
+
+// ProfileView.swift
+SCREENS.profile = () => {
+  const safe = safeArea();
+  const frac = Math.min(1, PLAYER.xpInLevel / PLAYER.xpNeeded);
+  // nextUnlock: lowest-level Kin/World not owned and above the player's level (Kin first on ties).
+  const locked = [...KIN_ORDER.filter(k => !owns.kin(k) && KIN[k].reqLevel > PLAYER.level).map(k => [KIN[k].name, KIN[k].reqLevel]),
+                  ...WORLD_ORDER.filter(w => !owns.world(w) && WORLD[w].reqLevel > PLAYER.level).map(w => [WORLD[w].name, WORLD[w].reqLevel])];
+  const next = locked.reduce((a, b) => (a === null || b[1] < a[1] ? b : a), null);
+  const stat = (value, label, tint) => `<div class="col" style="flex:1 1 0;height:32px;border-radius:8px;background:${css(PC.inkRaised)};align-items:center;justify-content:center;gap:1px">` +
+    text(value, F.numeral(12, "medium"), tint) + text(label, F.numeral(6.5), op(PC.white, 0.45), "letter-spacing:0.6px") + `</div>`;
+  const v = el("div", `position:absolute;left:0;right:0;top:-30px;padding:0 8px 8px;display:flex;flex-direction:column;align-items:stretch;`);
+  v.innerHTML = `
+    <div class="col" style="gap:2px;align-items:flex-start">
+      ${backButton("Home")}
+      ${text("Profile", F.heading(12, "heavy"), PC.white, "margin-top:2px")}
+    </div>
+    <div class="row" style="gap:10px;margin-top:6px">
+      <div id="ring" style="position:relative;flex:none;width:52px;height:52px">
+        <div class="col" style="position:absolute;inset:0;align-items:center;justify-content:center;z-index:2">
+          ${text(PLAYER.level, F.heading(19, "heavy"), PC.white)}${text("LEVEL", F.numeral(6), op(PC.white, 0.5), "letter-spacing:0.6px")}
+        </div>
+      </div>
+      <div class="col" style="flex:1 1 0;gap:3px;min-width:0">
+        ${text(`${PLAYER.xpInLevel} / ${PLAYER.xpNeeded} XP TO LV ${PLAYER.level + 1}`, F.numeral(8), op(PC.white, 0.5))}
+        <div style="position:relative;height:4px;border-radius:2px;background:${css(op(PC.white, 0.1))}"><div style="position:absolute;left:0;top:0;bottom:0;width:${frac * 100}%;border-radius:2px;background:${css(PC.green)}"></div></div>
+        ${next ? text(`${next[0].toUpperCase()} UNLOCKS AT ${next[1]}`, F.numeral(8), op(PC.white, 0.4), "overflow:hidden;text-overflow:ellipsis") : text("EVERYTHING UNLOCKED", F.numeral(8), op(PC.greenMint, 0.7))}
+      </div>
+    </div>
+    <div class="row" style="gap:4px;margin-top:7px">
+      ${stat(PLAYER.highScore, "BEST", PC.white)}${stat(PLAYER.streak, "STREAK", PLAYER.streak > 0 ? PC.green : PC.white)}${stat(PLAYER.gamesPlayed, "RUNS", PC.white)}
+    </div>`;
+  safe.appendChild(v);
+  const { c, ctx } = makeCanvas(60, 60, -4, -4);
+  ctx.translate(4, 4);
+  ellP(ctx, 0, 0, 52, 52); ctx.strokeStyle = css(op(PC.white, 0.1)); ctx.lineWidth = 4; ctx.stroke();
+  ctx.beginPath(); ctx.arc(26, 26, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.02, frac));
+  ctx.strokeStyle = css(PC.green); ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.stroke();
+  v.querySelector("#ring").prepend(c);
+  statusClock();
+};
+
+// GameOverView.swift
+SCREENS.gameOver = () => {
+  const safe = safeArea();
+  const r = { score: 468, season: "WINTER", seconds: 38,
+    lines: [["DISTANCE", 46, false], ["SHOOTS ×17", 34, false], ["5-DAY STREAK ×1.1", 4, false], ["MILESTONE", 15, false]] };
+  const row = ([label, amt, hi]) => `<div class="row" style="height:17px;padding:0 7px;border-radius:6px;background:${css(hi ? op(PC.green, 0.12) : PC.inkRaised)}">` +
+    text(label, F.numeral(8.5), hi ? PC.green : op(PC.white, 0.65)) + `<div class="spacer"></div>` + text("+" + amt, F.numeral(9.5, "medium"), hi ? PC.green : PC.greenMint) + `</div>`;
+  const icon = (svg) => `<div class="row" style="flex:none;width:34px;height:28px;border-radius:10px;justify-content:center;box-shadow:inset 0 0 0 0.5px ${css(op(PC.white, 0.2))}">${svg}</div>`;
+  const ic = css(op(PC.white, 0.75));
+  // SF Symbols house.fill / cart.fill at 12pt
+  const house = `<svg width="14" height="12" viewBox="0 0 28 24"><path fill="${ic}" d="M14 1.2 1.6 11.6c-.8.7-.3 1.9.7 1.9H4.5V22c0 .9.6 1.5 1.5 1.5h5.2v-6.6c0-.6.4-1 1-1h3.6c.6 0 1 .4 1 1v6.6H22c.9 0 1.5-.6 1.5-1.5v-8.5h2.2c1 0 1.5-1.2.7-1.9L20.8 6.9V2.6c0-.5-.4-.8-.8-.8h-1.6c-.5 0-.8.3-.8.8v1.7L15.1 1.2c-.3-.3-.8-.3-1.1 0Z"/></svg>`;
+  const cart = `<svg width="15" height="12" viewBox="0 0 30 24"><path fill="${ic}" d="M1.5 1.2h3.4c.9 0 1.5.5 1.7 1.4l.4 2h20.4c1 0 1.6.8 1.4 1.7l-1.6 7.6c-.2 1-1 1.6-2 1.6H9.4l.3 1.6c.1.5.5.8 1 .8h14.5a1.2 1.2 0 1 1 0 2.4H10.6c-1.7 0-3-1.1-3.3-2.8L4.3 3.6H1.5a1.2 1.2 0 1 1 0-2.4Z"/><circle fill="${ic}" cx="11.2" cy="21.6" r="2"/><circle fill="${ic}" cx="23.4" cy="21.6" r="2"/></svg>`;
+  const v = el("div", `position:absolute;left:0;right:0;top:-30px;padding:9px 10px 8px;display:flex;flex-direction:column;align-items:stretch;`);
+  v.innerHTML = `
+    <div class="row">${text("RUN ENDED", F.numeral(8), op(PC.white, 0.4), "letter-spacing:1.3px")}<div class="spacer"></div>${text(`${r.season} · ${r.seconds}s`, F.numeral(8), op(PC.white, 0.4), "letter-spacing:0.8px")}</div>
+    <div class="row" style="align-items:flex-end;gap:6px;margin-top:5px">
+      ${text(r.score, F.numeral(44, "medium"), PC.white, "letter-spacing:-1px")}
+      <div class="col" style="gap:2px;padding-bottom:3px">${text("BEST " + PLAYER.highScore, F.numeral(7.5), op(PC.white, 0.42))}</div>
+    </div>
+    <div class="col" style="gap:3px;margin-top:8px">${r.lines.map(row).join("")}</div>
+    <div style="margin-top:8px;margin-bottom:5px;font:${F.numeral(7.5)};color:${css(op(PC.white, 0.42))};line-height:calc(1em * 1.32 + 1.5px)">Run tomorrow to keep your ${PLAYER.streak}-day streak going.</div>
+    <div class="row" style="gap:5px">
+      <div class="row" style="flex:1 1 0;height:28px;border-radius:10px;justify-content:center;background:${css(PC.green)}">${text("Retry", F.heading(11, "heavy"), PC.ink, "letter-spacing:0.3px")}</div>
+      ${icon(house)}${icon(cart)}
+    </div>`;
+  safe.appendChild(v);
+  statusClock();
+};
+
+// GameView.swift — a frame of a live run. Scenes are built from GameState values the engine
+// actually produces (rhythm pattern tall-tall-short, spawn gaps, jump arc, shoot heights 18–50).
+const GAME_SCENES = {
+  // Bamboo Grove, just into SUMMER (season banner up), leaping a tall stalk mid-arc.
+  bambooSummer: (w, h) => ({
+    world: "bambooGrove", distance: 1534, currentTerraceHeight: 0,
+    dino: { x: 40, y: 45, jumping: true, duck: 0 }, kinAccent: PC.pandaBlack,
+    obstacles: [{ x: 49, w: 6, h: 34 }, { x: 49 + 148, w: 6, h: 34 }],
+    shoots: [{ x: 118, gh: 44, r: 3.5 }, { x: 170, gh: 26, r: 3 }],
+    score: 153, shootsCollected: 7, powerCharge: 63, powerUpActive: false, bannerOpacity: 1,
+    floating: [{ text: "+3", color: PC.greenMint, x: 52, y: 26, progress: 0.35 }],
+    t: 800000002.35,
+  }),
+  // Bamboo Grove in WINTER: snowfall, frosted stalks, charge full and HOLD ready.
+  bambooWinter: (w, h) => ({
+    world: "bambooGrove", distance: 4686, currentTerraceHeight: 0,
+    dino: { x: 40, y: 0, jumping: false, duck: 0 }, kinAccent: PC.pandaBlack,
+    obstacles: [{ x: 6, w: 6, h: 34 }, { x: 142, w: 5, h: 19 }],
+    shoots: [{ x: 96, gh: 22, r: 3 }, { x: 128, gh: 48, r: 3.5 }, { x: 196, gh: 30, r: 3 }],
+    score: 468, shootsCollected: 12, powerCharge: 100, powerUpActive: false, bannerOpacity: 0,
+    floating: [], t: 800000002.8,
+  }),
+  // Mist Terraces in SPRING: jumping the gap between floating slabs.
+  mistSpring: (w, h) => ({
+    world: "mistTerraces", distance: 972, currentTerraceHeight: 5,
+    dino: { x: 40, y: 34, jumping: true, duck: 0 }, kinAccent: PC.pandaBlack,
+    obstacles: [],
+    terraces: [{ x: -62, w: 90, hOff: 5 }, { x: 62, w: 90, hOff: -7 }, { x: 62 + 90 + 33, w: 90, hOff: 9 }],
+    shoots: [{ x: 108, gh: 30, r: 3.5 }, { x: 200, gh: 42, r: 3 }],
+    score: 97, shootsCollected: 6, powerCharge: 54, powerUpActive: false, bannerOpacity: 0,
+    floating: [], t: 800000006.0,
+  }),
+};
+for (const name of Object.keys(GAME_SCENES)) {
+  SCREENS[name] = () => {
+    const gs = GAME_SCENES[name](W, H);
+    gs.terraces = gs.terraces || [];
+    const { c, ctx } = makeCanvas(W, H);
+    screen.appendChild(c);
+    renderGame(ctx, { w: W, h: H }, gs, gs.t);
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+(async () => {
+  await Promise.all(["16px BG-XB", "16px BG-B", "16px DMM", "16px DMM-M", "16px SysSB"].map(f => document.fonts.load(f, "PANDA 0123 ★")));
+  await document.fonts.ready;
+  SCREENS[P.screen]();
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>
