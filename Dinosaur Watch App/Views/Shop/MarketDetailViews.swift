@@ -26,6 +26,13 @@ struct KinDetailView: View {
     }
 
     private func kinDetailContent(data: PlayerData, isOwned: Bool, isEquipped: Bool, hasLevel: Bool, hasWorld: Bool, canPurchase: Bool) -> some View {
+        ScrollView {
+        kinDetailBody(data: data, isOwned: isOwned, isEquipped: isEquipped, hasLevel: hasLevel, hasWorld: hasWorld, canPurchase: canPurchase)
+        }
+        .padding(.top, -30)
+    }
+
+    private func kinDetailBody(data: PlayerData, isOwned: Bool, isEquipped: Bool, hasLevel: Bool, hasWorld: Bool, canPurchase: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             MarketBackButton(label: "Market", action: onBack)
             Text("KIN · \(kin.stage) OF \(Kin.allCases.count)")
@@ -118,7 +125,7 @@ struct KinDetailView: View {
         .padding(.horizontal, 10)
         .padding(.top, 9)
         .padding(.bottom, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 
     private func evolutionDot(for stage: Kin, currentlyOwned: Bool) -> some View {
@@ -172,6 +179,13 @@ struct WorldDetailView: View {
     }
 
     private func worldDetailContent(data: PlayerData, isOwned: Bool, isEquipped: Bool, hasLevel: Bool, canPurchase: Bool) -> some View {
+        ScrollView {
+        worldDetailBody(data: data, isOwned: isOwned, isEquipped: isEquipped, hasLevel: hasLevel, canPurchase: canPurchase)
+        }
+        .padding(.top, -30)
+    }
+
+    private func worldDetailBody(data: PlayerData, isOwned: Bool, isEquipped: Bool, hasLevel: Bool, canPurchase: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             MarketBackButton(label: "Market", action: onBack)
             Text("WORLDS")
@@ -246,7 +260,7 @@ struct WorldDetailView: View {
         .padding(.horizontal, 10)
         .padding(.top, 9)
         .padding(.bottom, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 
     private func tag(_ text: String, color: Color, background: Color) -> some View {

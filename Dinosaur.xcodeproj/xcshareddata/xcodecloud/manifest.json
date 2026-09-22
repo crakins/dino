@@ -1,0 +1,9 @@
+{
+  "id" : "1f9371fd-6adc-4717-8e0a-bda9af13fffc",
+  "targets" : [
+    {
+      "id" : "72ec1294-975d-4ca7-be3c-c989db10b378",
+      "name" : "Dinosaur Watch App"
+    }
+  ]
+}

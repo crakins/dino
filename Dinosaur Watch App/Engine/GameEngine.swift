@@ -173,11 +173,16 @@ struct GameEngine {
             height: state.dinosaur.currentHeight
         )
 
+        // Shoots sit at a fixed height above the base ground line rather than the terrace
+        // currently under the dinosaur — otherwise every shoot on screen would bob up and down
+        // together as Mist Terraces' elevation changes, even ones over a different platform.
+        let baseGroundY = canvasSize.height - GameConstants.groundOffset
+
         var collectedIndices: [Int] = []
         for (i, shoot) in state.shoots.enumerated() {
             let shootRect = CGRect(
                 x: shoot.x - shoot.radius,
-                y: groundY - shoot.groundHeight - shoot.radius,
+                y: baseGroundY - shoot.groundHeight - shoot.radius,
                 width: shoot.radius * 2,
                 height: shoot.radius * 2
             )

@@ -239,7 +239,7 @@ struct GameView: View {
         renderSkyIcicles(context: context, groundY: groundY)
         renderObstacles(context: context, groundY: groundY, season: season)
         renderOverheadHazards(context: context, currentTime: currentTime)
-        renderShoots(context: context, groundY: groundY)
+        renderShoots(context: context, groundY: baseGroundY)
         renderPanda(context: context, groundY: groundY)
 
         renderHUD(context: context, size: size, currentTime: currentTime)

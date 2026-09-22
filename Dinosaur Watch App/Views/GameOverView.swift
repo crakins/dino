@@ -25,6 +25,21 @@ struct GameOverView: View {
     }
 
     private var content: some View {
+        ScrollView {
+            innerContent
+        }
+        .padding(.top, -30)
+        .onAppear {
+            canRestart = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                withAnimation(.easeIn(duration: 0.2)) {
+                    canRestart = true
+                }
+            }
+        }
+    }
+
+    private var innerContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("RUN ENDED")
@@ -76,12 +91,11 @@ struct GameOverView: View {
                 .padding(.top, 8)
             }
 
-            Spacer(minLength: 4)
-
             Text(streakConsequenceText)
                 .font(.numeral(size: 7.5))
                 .foregroundColor(PandaColor.white.opacity(0.42))
                 .lineSpacing(1.5)
+                .padding(.top, 8)
                 .padding(.bottom, 5)
 
             HStack(spacing: 5) {
@@ -106,15 +120,7 @@ struct GameOverView: View {
         .padding(.horizontal, 10)
         .padding(.top, 9)
         .padding(.bottom, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            canRestart = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                withAnimation(.easeIn(duration: 0.2)) {
-                    canRestart = true
-                }
-            }
-        }
+        .frame(maxWidth: .infinity)
     }
 
     private var streakConsequenceText: String {

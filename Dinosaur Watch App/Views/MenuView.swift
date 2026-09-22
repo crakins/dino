@@ -53,52 +53,47 @@ struct MenuView: View {
         }
     }
 
-    // Every fixed size below is scaled by the watch's actual available height so the bottom
-    // row (Market/Quest) never gets pushed past the visible area and clipped by the bezel on
-    // smaller watch sizes (40/41mm) — 250pt is the ~45/46mm baseline the design was made at.
+    // Sizes below are tightened to fit the smallest supported watch (40mm) without needing to
+    // scroll, since Run/Market/Quest is the primary CTA. No ScrollView here (unlike the Market/
+    // Profile screens) — content is guaranteed to fit, and the -30 top pull below (matching the
+    // rest of the app's flush-to-top chrome) only takes effect outside a ScrollView.
     private var content: some View {
-        GeometryReader { geo in
-            let scale = max(0.74, min(1, geo.size.height / 250))
+        VStack(spacing: 0) {
+            topRow
 
-            VStack(spacing: 0) {
-                topRow
+            VStack(spacing: 1) {
+                PandaFaceIcon()
+                    .frame(width: 22, height: 17)
 
-                VStack(spacing: 4 * scale) {
-                    PandaFaceIcon()
-                        .frame(width: 38 * scale, height: 29 * scale)
-
-                    VStack(spacing: -10 * scale) {
-                        Text("PANDA")
-                            .font(.heading(size: 40 * scale, weight: .heavy))
-                            .foregroundColor(PandaColor.white)
-                        Text("PANDA")
-                            .font(.heading(size: 40 * scale, weight: .heavy))
-                            .foregroundColor(PandaColor.green)
-                    }
+                HStack(spacing: 3) {
+                    Text("PANDA")
+                        .font(.heading(size: 15, weight: .heavy))
+                        .foregroundColor(PandaColor.white)
+                    Text("PANDA")
+                        .font(.heading(size: 15, weight: .heavy))
+                        .foregroundColor(PandaColor.green)
                 }
-                .padding(.top, 2 * scale)
-
-                infoRow
-                    .padding(.top, 4 * scale)
-
-                streakRow
-                    .padding(.top, 4 * scale)
-
-                Spacer(minLength: 6 * scale)
-
-                RunButton(action: onStart, height: 42 * scale)
-
-                HStack(spacing: 6) {
-                    PillButton(title: "Market", dot: unseenUnlocks > 0 ? .filled(PandaColor.greenMint) : nil, height: 30 * scale, action: onShop)
-                    PillButton(title: "Quest", dot: questProgress >= questTarget ? .filled(PandaColor.green) : .outline(PandaColor.white.opacity(0.35)), height: 30 * scale, action: onQuest)
-                }
-                .padding(.top, 5 * scale)
             }
-            .padding(.horizontal, 10)
-            .padding(.top, -8)
-            .padding(.bottom, 8)
-            .frame(width: geo.size.width, height: geo.size.height)
+            .padding(.top, 2)
+
+            infoRow
+                .padding(.top, 3)
+
+            streakRow
+                .padding(.top, 3)
+
+            RunButton(action: onStart, height: 32)
+                .padding(.top, 6)
+
+            HStack(spacing: 6) {
+                PillButton(title: "Market", dot: unseenUnlocks > 0 ? .filled(PandaColor.greenMint) : nil, height: 25, action: onShop)
+                PillButton(title: "Quest", dot: questProgress >= questTarget ? .filled(PandaColor.green) : .outline(PandaColor.white.opacity(0.35)), height: 25, action: onQuest)
+            }
+            .padding(.top, 4)
         }
+        .padding(.horizontal, 10)
+        .padding(.top, -30)
+        .padding(.bottom, 4)
     }
 
     // Level and coins share a single chip, entirely on the left — the system clock owns the

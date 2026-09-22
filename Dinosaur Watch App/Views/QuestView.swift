@@ -1,35 +1,14 @@
 import SwiftUI
 import WatchKit
 
-/// A local "ghost rival" — this game has no backend, so the burrow leaderboard is derived
-/// deterministically from the player's own high score rather than pretending to be live data.
-private struct Rival {
-    let name: String
-    let score: Int
-}
-
 struct QuestView: View {
     let playerData: PlayerData
-    let highScore: Int
     let onClose: () -> Void
     let onRun: () -> Void
 
     private var progress: Int { playerData.todaysQuestProgress }
     private var target: Int { PlayerData.dailyQuestTarget }
     private var isComplete: Bool { playerData.isDailyQuestComplete }
-
-    private var rivalAhead: Rival {
-        // Deterministic offset so the gap feels alive day to day without needing a backend.
-        let daySeed = Calendar.current.component(.dayOfYear, from: Date())
-        let offset = 80 + (daySeed % 70)
-        return Rival(name: "Mara", score: highScore + offset)
-    }
-
-    private var rivalBehind: Rival {
-        let daySeed = Calendar.current.component(.dayOfYear, from: Date())
-        let offset = 15 + (daySeed % 45)
-        return Rival(name: "Ollie", score: max(0, highScore - offset))
-    }
 
     private var resetCaption: String {
         let calendar = Calendar.current
@@ -52,14 +31,6 @@ struct QuestView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 questCard
-                    .padding(.top, 6)
-                Text("This week's burrow")
-                    .font(.heading(size: 9.5, weight: .semibold))
-                    .foregroundColor(PandaColor.white)
-                    .padding(.top, 8)
-                leaderboard
-                    .padding(.top, 4)
-                gapCaption
                     .padding(.top, 6)
             }
             .padding(.horizontal, 8)
@@ -142,48 +113,5 @@ struct QuestView: View {
             )
         )
         .cornerRadius(10)
-    }
-
-    private var leaderboard: some View {
-        VStack(spacing: 3) {
-            leaderboardRow(rank: 1, name: rivalAhead.name, score: rivalAhead.score, isYou: false)
-            leaderboardRow(rank: 2, name: "You", score: highScore, isYou: true)
-            leaderboardRow(rank: 3, name: rivalBehind.name, score: rivalBehind.score, isYou: false)
-        }
-    }
-
-    private func leaderboardRow(rank: Int, name: String, score: Int, isYou: Bool) -> some View {
-        HStack(spacing: 6) {
-            Text("\(rank)")
-                .font(.numeral(size: 8))
-                .foregroundColor(isYou ? PandaColor.green : PandaColor.white.opacity(0.4))
-                .frame(width: 9, alignment: .leading)
-            Text(name)
-                .font(.heading(size: 9, weight: .semibold))
-                .foregroundColor(isYou ? PandaColor.green : PandaColor.white)
-            Spacer()
-            Text("\(score)")
-                .font(.numeral(size: 9, weight: .medium))
-                .foregroundColor(isYou ? PandaColor.green : PandaColor.white)
-        }
-        .padding(.horizontal, 7)
-        .frame(height: 20)
-        .background(
-            isYou
-                ? AnyShapeStyle(PandaColor.green.opacity(0.16))
-                : AnyShapeStyle(PandaColor.inkRaised)
-        )
-        .cornerRadius(7)
-        .overlay(
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(isYou ? PandaColor.green.opacity(0.5) : Color.clear, lineWidth: 0.5)
-        )
-    }
-
-    private var gapCaption: some View {
-        let gap = rivalAhead.score - highScore
-        return Text(gap > 0 ? "\(gap) more and \(rivalAhead.name)'s yours." : "You're in the lead.")
-            .font(.numeral(size: 7.5))
-            .foregroundColor(PandaColor.white.opacity(0.42))
     }
 }

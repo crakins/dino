@@ -87,7 +87,6 @@ struct ContentView: View {
             if showQuest {
                 QuestView(
                     playerData: playerDataManager.playerData,
-                    highScore: highScore,
                     onClose: { showQuest = false },
                     onRun: {
                         showQuest = false

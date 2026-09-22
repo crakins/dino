@@ -1,0 +1,661 @@
+<title>Get It On a Watch</title>
+<style>
+  :root {
+    --bg: #F6F5F1;
+    --surface: #FFFFFF;
+    --surface-2: #ECEAE3;
+    --text: #1B1F1C;
+    --text-dim: #5B645C;
+    --accent: #3F8F53;
+    --accent-soft: #DCEEDF;
+    --warn: #A6631A;
+    --warn-soft: #F3E4CE;
+    --code-bg: #EFEEE7;
+    --code-text: #2B3A2E;
+    --border: #DDDAD0;
+    --shadow: 0 1px 2px rgba(30, 30, 20, 0.06);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0E100E;
+      --surface: #1A1D1A;
+      --surface-2: #141614;
+      --text: #F4F6F3;
+      --text-dim: #9AA79C;
+      --accent: #7BCB89;
+      --accent-soft: rgba(123, 203, 137, 0.14);
+      --warn: #E0A85C;
+      --warn-soft: rgba(224, 168, 92, 0.14);
+      --code-bg: #141614;
+      --code-text: #CDE7D1;
+      --border: rgba(244, 246, 243, 0.1);
+      --shadow: none;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0E100E;
+    --surface: #1A1D1A;
+    --surface-2: #141614;
+    --text: #F4F6F3;
+    --text-dim: #9AA79C;
+    --accent: #7BCB89;
+    --accent-soft: rgba(123, 203, 137, 0.14);
+    --warn: #E0A85C;
+    --warn-soft: rgba(224, 168, 92, 0.14);
+    --code-bg: #141614;
+    --code-text: #CDE7D1;
+    --border: rgba(244, 246, 243, 0.1);
+    --shadow: none;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Source Sans 3", -apple-system, BlinkMacSystemFont, sans-serif;
+    padding: 40px 20px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  h1, h2, h3 { text-wrap: balance; font-family: "Fraunces", Georgia, serif; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  h1 {
+    font-size: clamp(28px, 5vw, 38px);
+    font-weight: 600;
+    margin: 10px 0 6px;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 16px;
+    line-height: 1.55;
+    max-width: 60ch;
+    margin: 0 0 28px;
+  }
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 36px;
+  }
+  .pill {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+
+  .callout {
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin: 0 0 36px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .callout .icon {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+  }
+  .callout p {
+    margin: 0;
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .callout strong { color: var(--accent); }
+
+  section.step {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 4px 18px;
+    padding: 28px 0;
+    border-top: 1px solid var(--border);
+  }
+  section.step:first-of-type { border-top: none; padding-top: 4px; }
+
+  .step-num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--text-dim);
+    padding-top: 3px;
+    grid-row: 1 / 3;
+  }
+
+  .step h2 {
+    grid-column: 2;
+    font-size: 19px;
+    font-weight: 600;
+    margin: 0 0 8px;
+  }
+
+  .step-body {
+    grid-column: 2;
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  .step-body p { margin: 0 0 10px; }
+  .step-body p:last-child { margin-bottom: 0; }
+  .step-body ul {
+    margin: 8px 0 0;
+    padding-left: 20px;
+  }
+  .step-body li { margin-bottom: 6px; }
+
+  .path, code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 0.88em;
+    word-break: break-word;
+  }
+
+  .steps-through {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--text-dim);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px 9px;
+    display: inline-block;
+    margin-top: 8px;
+  }
+
+  .warn-box {
+    margin-top: 12px;
+    background: var(--warn-soft);
+    border-left: 3px solid var(--warn);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+  .warn-box strong { color: var(--warn); }
+
+  .divider-label {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 48px 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .divider-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .faq {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .faq-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
+  .faq-item h3 {
+    font-size: 14.5px;
+    margin: 0 0 6px;
+    font-family: "Source Sans 3", sans-serif;
+    font-weight: 700;
+  }
+  .faq-item p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-dim);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 480px) {
+    section.step { grid-template-columns: 28px 1fr; gap: 4px 12px; }
+    .step-num { font-size: 12px; }
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 4px;
+    margin: 4px 0 32px;
+  }
+  .tab {
+    flex: 1;
+    font: inherit;
+    font-family: "Source Sans 3", sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-dim);
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .tab small {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 400;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    color: inherit;
+    opacity: 0.75;
+  }
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] {
+    background: var(--surface);
+    color: var(--accent);
+    box-shadow: var(--shadow);
+  }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .method { display: none; }
+  .method[data-active="true"] { display: block; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tab { transition: none; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<div class="page">
+  <p class="eyebrow">Dinosaur &middot; Watch App</p>
+  <h1>Getting the app onto an Apple&nbsp;Watch you don't own</h1>
+  <p class="subtitle">
+    Two ways to get a build onto someone else's watch. <strong>Sideload</strong> is faster and free, but runs
+    through your Mac and their iPhone directly, cable in hand. <strong>TestFlight</strong> takes longer to set
+    up and costs $99/yr, but once it's running, anyone can install over the air with just an email invite.
+  </p>
+
+  <div class="tabs" role="tablist" aria-label="Installation method">
+    <button class="tab" id="tab-sideload" role="tab" aria-selected="true" aria-controls="panel-sideload">
+      Sideload
+      <small>free &middot; needs the device in hand</small>
+    </button>
+    <button class="tab" id="tab-testflight" role="tab" aria-selected="false" aria-controls="panel-testflight" tabindex="-1">
+      TestFlight
+      <small>$99/yr &middot; installs remotely</small>
+    </button>
+  </div>
+
+  <div class="method" data-active="true" id="panel-sideload" role="tabpanel" aria-labelledby="tab-sideload">
+
+  <p class="subtitle" style="margin-top:-8px;">
+    You don't need the watch, or the iPhone it's paired to, logged into your account. Code signing happens
+    inside Xcode with an Apple ID you add there &mdash; the device itself only needs to trust your Mac and
+    your developer certificate.
+  </p>
+
+  <div class="meta-row">
+    <span class="pill">scheme: Dinosaur Watch App</span>
+    <span class="pill">target: watchOS 11.4+</span>
+    <span class="pill">~15 min, free Apple ID</span>
+  </div>
+
+  <div class="callout">
+    <svg class="icon" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8.5" stroke="var(--accent)" stroke-width="1.4"/><path d="M10 6.2v4.6M10 13.4v.1" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <p>
+      <strong>The two accounts are unrelated.</strong> The Apple ID you sign into Xcode's <span class="path">Settings &rsaquo; Accounts</span>
+      generates the certificate the app is built with. The Apple ID on the watch's iPhone just needs the resulting
+      app to be trusted &mdash; it never has to match, and it never has to sign in to anything.
+    </p>
+  </div>
+
+  <section class="step">
+    <div class="step-num">01</div>
+    <h2>Pair the watch to a nearby iPhone</h2>
+    <div class="step-body">
+      <p>
+        You can't install straight onto a watch &mdash; Xcode always deploys through the iPhone it's paired with.
+        Any iPhone works, signed into any account or none. Pair them the normal way if they aren't already
+        (Watch app &rsaquo; Start Pairing), then connect that <em>iPhone</em> to your Mac with a cable, or over
+        Wi-Fi once it shows up once via cable.
+      </p>
+      <p>On the phone, tap <strong>Trust</strong> when your Mac prompts for it.</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-num">02</div>
+    <h2>Add your own Apple ID to Xcode</h2>
+    <div class="step-body">
+      <p>
+        In Xcode: <span class="path">Xcode &rsaquo; Settings &rsaquo; Accounts &rsaquo; +</span> &rsaquo; sign in with any Apple ID you control.
+        A free, non-paid Apple ID is enough &mdash; you get a "Personal Team," which is all sideloading needs.
+      </p>
+      <p>This account signs the build. It has no relationship to whoever owns the watch or the iPhone.</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-num">03</div>
+    <h2>Point signing at your Personal Team</h2>
+    <div class="step-body">
+      <p>Open <span class="path">Dinosaur.xcodeproj</span>, then for <strong>both</strong> targets &mdash; <span class="path">Dinosaur</span> and <span class="path">Dinosaur Watch App</span>:</p>
+      <ul>
+        <li>Select the target &rsaquo; <span class="path">Signing &amp; Capabilities</span></li>
+        <li>Check <strong>Automatically manage signing</strong></li>
+        <li>Set <strong>Team</strong> to the Personal Team from step 2</li>
+      </ul>
+      <div class="warn-box">
+        <strong>If signing fails with "no account for team":</strong> the bundle ID
+        <span class="path">com.a6enterprises.Dinosaur.watchkitapp</span> may already be claimed on this
+        Apple ID by an earlier build. Append something unique, e.g. <span class="path">.dev</span>, on both
+        targets' bundle identifiers and re-run.
+      </div>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-num">04</div>
+    <h2>Select the watch as the run destination</h2>
+    <div class="step-body">
+      <p>
+        Confirm the watch shows up in <span class="path">Window &rsaquo; Devices and Simulators</span> once
+        the iPhone is connected &mdash; watchOS devices appear automatically through their paired phone, no
+        separate cable needed.
+      </p>
+      <p>
+        Then in the scheme bar, choose the <strong>Dinosaur Watch App</strong> scheme and pick the physical
+        watch (not a simulator) as the destination.
+      </p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-num">05</div>
+    <h2>Turn on Developer Mode</h2>
+    <div class="step-body">
+      <p>Both the iPhone and the watch need Developer Mode enabled once, the first time you sideload anything:</p>
+      <ul>
+        <li><strong>iPhone:</strong> <span class="path">Settings &rsaquo; Privacy &amp; Security &rsaquo; Developer Mode</span> &rsaquo; toggle on &rsaquo; restart</li>
+        <li><strong>Watch:</strong> <span class="path">Settings &rsaquo; Privacy &amp; Security &rsaquo; Developer Mode</span> on the watch itself &rsaquo; toggle on &rsaquo; restart</li>
+      </ul>
+      <p>If the toggle isn't visible yet, run step 6 once first &mdash; Xcode surfaces it as part of the install attempt.</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-num">06</div>
+    <h2>Build, trust, run</h2>
+    <div class="step-body">
+      <p>Press <code>&#8984;R</code>. The first install will likely stop with an untrusted-developer warning. Clear it on the <strong>iPhone</strong>:</p>
+      <ul>
+        <li><span class="path">Settings &rsaquo; General &rsaquo; VPN &amp; Device Management</span></li>
+        <li>Tap your Personal Team's profile under "Developer App"</li>
+        <li>Tap <strong>Trust</strong></li>
+      </ul>
+      <p>Run again. It launches straight on the watch face.</p>
+    </div>
+  </section>
+
+  <div class="divider-label">Free-account limits</div>
+  <div class="faq">
+    <div class="faq-item">
+      <h3>The app disappears after a week</h3>
+      <p>Personal Team certificates expire every 7 days. Reopen the project in Xcode and hit <code>&#8984;R</code> again to re-sign and refresh it &mdash; no data is lost on the watch.</p>
+    </div>
+    <div class="faq-item">
+      <h3>Xcode says you've hit an app limit</h3>
+      <p>A free Apple ID can have at most 3 apps sideloaded at once across your devices. Remove an old one from the watch (press and hold the icon &rsaquo; Remove App) to free a slot.</p>
+    </div>
+    <div class="faq-item">
+      <h3>Do I need the watch's iCloud password?</h3>
+      <p>No. Nothing in this flow asks for it. The only credential involved is the Apple ID you added to Xcode in step 2, and it only ever touches your Mac.</p>
+    </div>
+  </div>
+
+  </div>
+
+  <div class="method" id="panel-testflight" role="tabpanel" aria-labelledby="tab-testflight">
+
+  <p class="subtitle" style="margin-top:-8px;">
+    TestFlight skips Xcode's device-trust dance entirely &mdash; you build once, upload it to App Store
+    Connect, then whoever's watch it is installs it through the TestFlight app using their own Apple ID.
+    Unlike sideloading, that Apple ID <em>does</em> need to accept an invite &mdash; it just doesn't need to
+    be yours, or the one Xcode is signed into.
+  </p>
+
+  <div class="meta-row">
+    <span class="pill">scheme: Dinosaur</span>
+    <span class="pill">requires: paid Apple Developer Program</span>
+    <span class="pill">~30 min + review wait</span>
+  </div>
+
+  <div class="callout">
+    <svg class="icon" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8.5" stroke="var(--accent)" stroke-width="1.4"/><path d="M10 6.2v4.6M10 13.4v.1" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <p>
+      <strong>One requirement sideloading doesn't have:</strong> TestFlight only exists for apps built under
+      a <strong>paid</strong> Apple Developer Program membership ($99/yr) &mdash; a free Personal Team can sign
+      builds locally but can't upload to App Store Connect. If step 1 below is already true for you, skip to
+      step 2.
+    </p>
+  </div>
+
+  <section class="step">
+    <div class="step-num">01</div>
+    <h2>Enroll in the Apple Developer Program</h2>
+    <div class="step-body">
+      <p>
+        Under your own Apple ID, at <span class="path">developer.apple.com/programs</span> &rsaquo; Enroll.
+        This is the account that owns the app record and the TestFlight build &mdash; it's separate from
+        whichever Apple ID ends up testing on the watch.
+      </p>
+      <p>In Xcode, add it under <span class="path">Xcode &rsaquo; Settings &rsaquo; Accounts</span> if it isn't there yet.</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-num">02</div>
+    <h2>Register the app in App Store Connect</h2>
+    <div class="step-body">
+      <p>At <span class="path">appstoreconnect.apple.com &rsaquo; Apps &rsaquo; +</span> &rsaquo; New App:</p>
+      <ul>
+        <li>Platform: <strong>watchOS</strong> (App Store Connect adds iOS automatically for the companion container)</li>
+        <li>Bundle ID: <span class="path">com.a6enterprises.Dinosaur.watchkitapp</span> &mdash; register it under <span class="path">Certificates, Identifiers &amp; Profiles</span> first if it doesn't appear in the picker</li>
+        <li>SKU: anything unique, e.g. <span class="path">dinosaur-watch-tf</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-num">03</div>
+    <h2>Set signing to your team, then archive</h2>
+    <div class="step-body">
+      <p>Open <span class="path">Dinosaur.xcodeproj</span>. For both the <span class="path">Dinosaur</span> and <span class="path">Dinosaur Watch App</span> targets, set <span class="path">Signing &amp; Capabilities &rsaquo; Team</span> to your Developer Program team, automatic signing on.</p>
+      <p>
+        Select the <strong>Dinosaur</strong> scheme (the container &mdash; archiving the watch app scheme
+        directly isn't offered), destination <strong>Any watchOS Device</strong>, then
+        <span class="path">Product &rsaquo; Archive</span>.
+      </p>
+      <div class="warn-box">
+        <strong>"Archive" is greyed out:</strong> that means a Simulator destination is still selected.
+        Archive only appears once a real device or "Any watchOS Device" is chosen.
+      </div>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-num">04</div>
+    <h2>Upload from the Organizer</h2>
+    <div class="step-body">
+      <p>
+        When the archive finishes, the Organizer window opens automatically &rsaquo; select it &rsaquo;
+        <strong>Distribute App</strong> &rsaquo; <strong>TestFlight &amp; App Store</strong> &rsaquo; Upload,
+        keeping the default automatic signing options.
+      </p>
+      <p>Processing on Apple's side typically takes 10&ndash;30 minutes. You'll get an email once the build is ready to test.</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-num">05</div>
+    <h2>Clear Export Compliance</h2>
+    <div class="step-body">
+      <p>
+        In App Store Connect &rsaquo; TestFlight, the new build shows a missing-compliance warning until
+        answered. This app doesn't add its own encryption, so answer <strong>No</strong> to "Does your app
+        use encryption" &mdash; the build then moves to <strong>Ready to Test</strong>.
+      </p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-num">06</div>
+    <h2>Invite the watch's Apple ID as a tester</h2>
+    <div class="step-body">
+      <p>Still in TestFlight &rsaquo; <span class="path">Internal Testing</span> &rsaquo; create a group &rsaquo; add the build, then add a tester by the <strong>email address signed into that iPhone</strong> (the one the target watch is paired to). Internal testers install instantly, no review wait &mdash; up to 100 people, and they need to be added to your team in App Store Connect &rsaquo; Users and Access first.</p>
+      <div class="warn-box">
+        <strong>Testing someone else's watch, no App Store Connect access to add them?</strong> Use
+        <span class="path">External Testing</span> instead &mdash; add by email without a team invite. It
+        requires a one-time Apple Beta App Review (usually under a day) before the link works.
+      </div>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-num">07</div>
+    <h2>Install on the phone, then the watch</h2>
+    <div class="step-body">
+      <p>On the paired iPhone, signed into the invited Apple ID:</p>
+      <ul>
+        <li>Accept the TestFlight email invite (or open the public link for external testing)</li>
+        <li>Install the <strong>TestFlight</strong> app from the App Store if it isn't already there</li>
+        <li>Open the invite in TestFlight &rsaquo; <strong>Install</strong></li>
+      </ul>
+      <p>The watchOS companion installs on the paired watch on its own within a minute or two &mdash; no separate step on the watch itself.</p>
+    </div>
+  </section>
+
+  <div class="divider-label">Common snags</div>
+  <div class="faq">
+    <div class="faq-item">
+      <h3>The watch app never shows up after the phone install</h3>
+      <p>Open the Watch app on the iPhone &rsaquo; scroll to the Dinosaur entry under "Available Apps" and tap Install &mdash; some watchOS versions don't auto-push a first install.</p>
+    </div>
+    <div class="faq-item">
+      <h3>Builds expire</h3>
+      <p>TestFlight builds stop working 90 days after upload. Archive and upload again from Xcode to refresh &mdash; testers get an update prompt, no re-invite needed.</p>
+    </div>
+    <div class="faq-item">
+      <h3>Do I need the watch owner's Apple ID password?</h3>
+      <p>No &mdash; you only need their email to send the invite. They accept it and install using their own account, on their own device, without sharing credentials with you.</p>
+    </div>
+    <div class="faq-item">
+      <h3>"No suitable application records were found" on upload</h3>
+      <p>The bundle ID in Xcode doesn't match one registered in App Store Connect yet. Revisit step 2 and confirm the watch app's bundle ID was registered before creating the app record.</p>
+    </div>
+  </div>
+
+  </div>
+
+  <footer>
+    <span>Dinosaur &middot; watchOS 11.4+</span>
+    <span>bundle: com.a6enterprises.Dinosaur.watchkitapp</span>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var tabs = [
+      { btn: document.getElementById('tab-sideload'), panel: document.getElementById('panel-sideload') },
+      { btn: document.getElementById('tab-testflight'), panel: document.getElementById('panel-testflight') }
+    ];
+    function select(active) {
+      tabs.forEach(function (t) {
+        var isActive = t === active;
+        t.btn.setAttribute('aria-selected', String(isActive));
+        t.btn.tabIndex = isActive ? 0 : -1;
+        t.panel.setAttribute('data-active', String(isActive));
+      });
+      active.btn.focus();
+    }
+    tabs.forEach(function (t, i) {
+      t.btn.addEventListener('click', function () {
+        tabs.forEach(function (o) {
+          var isActive = o === t;
+          o.btn.setAttribute('aria-selected', String(isActive));
+          o.btn.tabIndex = isActive ? 0 : -1;
+          o.panel.setAttribute('data-active', String(isActive));
+        });
+      });
+      t.btn.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+          e.preventDefault();
+          var next = e.key === 'ArrowRight' ? (i + 1) % tabs.length : (i - 1 + tabs.length) % tabs.length;
+          select(tabs[next]);
+        }
+      });
+    });
+  })();
+</script>
