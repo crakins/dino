@@ -960,6 +960,152 @@ for (const name of Object.keys(GAME_SCENES)) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Animation: CountdownView (3-2-1) followed by a simulated Bamboo Grove run.
+// The run steps a port of GameEngine.update() (rhythm mechanic) at a fixed 60 Hz; an autopilot
+// taps "jump" the way a player would. Driven frame-by-frame by make-gif.mjs via window.renderFrame(i).
+// ---------------------------------------------------------------------------------------------
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// CountdownView.render
+function renderCountdown(ctx, size, count, beatElapsed, t) {
+  rectP(ctx, 0, 0, size.w, size.h); fill(ctx, PC.ink);
+  const groundY = size.h - 38;
+  rectP(ctx, 0, groundY, size.w, 1); fill(ctx, op(PC.green, 0.45));
+  ctx.save(); ctx.beginPath(); ctx.moveTo(0, size.h - 32); ctx.lineTo(size.w, size.h - 32);
+  ctx.setLineDash([10, 10]); ctx.lineWidth = 2; ctx.strokeStyle = css(op(PC.green, 0.35)); ctx.stroke(); ctx.restore();
+  const cx = size.w / 2, cy = size.h / 2;
+  ellP(ctx, cx - 48, cy - 48, 96, 96); ctx.strokeStyle = css(op(PC.white, 0.1)); ctx.lineWidth = 3; ctx.stroke();
+  const remaining = Math.max(0, 1 - beatElapsed / 0.8);
+  if (remaining > 0) {
+    ctx.beginPath(); ctx.arc(cx, cy, 48, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * remaining);
+    ctx.strokeStyle = css(PC.green); ctx.lineWidth = 3; ctx.lineCap = "butt"; ctx.stroke();
+  }
+  drawText(ctx, String(count), F.heading(54, "heavy"), PC.white, cx, cy);
+  const bob = Math.abs(Math.sin(t * (Math.PI / 0.4))) * 3;
+  const ph = 23, pw = ph * 36 / 26;
+  drawPanda(ctx, { x: 34, y: size.h - 39 - ph - bob, w: pw, h: ph }, 0, PC.pandaBlack);
+  drawText(ctx, "SPRING · TAP TO LEAP", F.numeral(8), op(PC.white, 0.4), size.w / 2, size.h - 14, "center", 1.2);
+}
+
+function simulateRun(size, seconds, seed) {
+  const rnd = mulberry32(seed);
+  const rand = (a, b) => a + (b - a) * rnd();
+  const TYPES = { tall: { w: 6, h: 34 }, short: { w: 5, h: 19 } };
+  const PATTERN = ["tall", "tall", "short"];
+  const st = { distance: 0, gameSpeed: 100, dino: { x: 40, y: 0, vy: 0, jumping: false }, obstacles: [], shoots: [],
+    lastObs: 0, lastShoot: 0, rhythm: 0, shootsCollected: 0, powerCharge: 0, score: 0 };
+  const frames = [], events = [];
+  const dt = 1 / 60, steps = Math.round(seconds * 60);
+  const groundY = size.h - GROUND_OFFSET;
+  const tuningFor = m => ({ spring: { scroll: 1.0, heightMul: 0.7, jumpMul: 1, gravMul: 1, shootMul: 2 },
+    summer: { scroll: 1.05, heightMul: 1, jumpMul: 1, gravMul: 1, shootMul: 1 },
+    autumn: { scroll: 1.1, heightMul: 1, jumpMul: 1, gravMul: 1, shootMul: 1 },
+    winter: { scroll: 1.15, heightMul: 1, jumpMul: 1.15, gravMul: 0.85, shootMul: 1 } })[seasonOf(Math.floor(m))];
+  const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  let crashed = false;
+  for (let i = 0; i < steps; i++) {
+    const tuning = tuningFor(st.distance / 10);
+    const speed = st.gameSpeed * tuning.scroll;
+    // Autopilot: jump so the apex lands over the next stalk; otherwise hop for a high shoot.
+    if (!st.dino.jumping) {
+      const air = 2 * 280 * tuning.jumpMul / (800 * tuning.gravMul);
+      const next = st.obstacles.find(o => o.x + o.w > st.dino.x + 4);
+      const lead = speed * air * 0.5;
+      if (next && next.x + next.w / 2 - (st.dino.x + 12) <= lead) {
+        st.dino.vy = 280 * tuning.jumpMul; st.dino.jumping = true;
+      } else {
+        const shoot = st.shoots.find(s => s.x > st.dino.x + 12 && s.gh > 26);
+        const clear = !next || next.x - (st.dino.x + 24) > speed * air * 1.9;
+        if (shoot && clear && shoot.x - (st.dino.x + 12) <= speed * air * 0.5 * (shoot.gh > 40 ? 1 : 0.55)) {
+          st.dino.vy = 280 * tuning.jumpMul; st.dino.jumping = true;
+        }
+      }
+    }
+    // updateDinosaur
+    if (st.dino.jumping) {
+      st.dino.vy += -800 * tuning.gravMul * dt; st.dino.y += st.dino.vy * dt;
+      if (st.dino.y <= 0) { st.dino.y = 0; st.dino.vy = 0; st.dino.jumping = false; }
+    }
+    // updateObstacles
+    for (const o of st.obstacles) o.x -= speed * dt;
+    st.obstacles = st.obstacles.filter(o => o.x >= -50);
+    // updateShoots
+    for (const s of st.shoots) s.x -= speed * dt;
+    const dinoRect = { x: st.dino.x, y: groundY - st.dino.y - 28, w: 24, h: 28 };
+    const got = st.shoots.filter(s => hit(dinoRect, { x: s.x - s.r, y: groundY - s.gh - s.r, w: s.r * 2, h: s.r * 2 }));
+    if (got.length) {
+      st.shoots = st.shoots.filter(s => !got.includes(s));
+      st.shootsCollected += got.length;
+      st.powerCharge = Math.min(100, st.powerCharge + 9 * got.length);
+      events.push({ step: i, kind: "shoot", gained: got.length });
+    }
+    st.shoots = st.shoots.filter(s => s.x >= -20);
+    // spawnObstaclesIfNeeded (.rhythm) — gap re-rolled every frame, as in the engine
+    const gap = 100 * (st.gameSpeed / 100) * rand(0.85, 1.3);
+    if (st.distance - st.lastObs >= gap) {
+      const ty = TYPES[PATTERN[st.rhythm % 3]]; st.rhythm++;
+      st.obstacles.push({ x: size.w + 20, w: ty.w, h: ty.h * tuning.heightMul });
+      st.lastObs = st.distance;
+    }
+    // spawnShootsIfNeeded
+    if (st.distance - st.lastShoot >= rand(60, 140)) {
+      st.shoots.push({ x: size.w + 20, gh: rand(18, 50), r: rnd() < 0.5 ? 3.5 : 3 });
+      st.lastShoot = st.distance;
+    }
+    // checkObstacleCollision (inset rects)
+    const d4 = { x: dinoRect.x + 4, y: dinoRect.y + 4, w: 16, h: 20 };
+    for (const o of st.obstacles) if (hit(d4, { x: o.x + 2, y: groundY - o.h + 2, w: o.w - 4, h: o.h - 4 })) crashed = true;
+    st.distance += speed * dt;
+    const prevScore = st.score;
+    st.score = Math.floor(st.distance * 0.1);
+    for (const m of [100, 200, 500, 1000]) if (prevScore < m && st.score >= m) events.push({ step: i, kind: "milestone", m });
+    st.gameSpeed = Math.min(250, st.gameSpeed + 2 * dt);
+    frames.push(JSON.parse(JSON.stringify({ distance: st.distance, dino: st.dino, obstacles: st.obstacles, shoots: st.shoots,
+      score: st.score, shootsCollected: st.shootsCollected, powerCharge: st.powerCharge })));
+  }
+  return { frames, events, crashed };
+}
+
+SCREENS.anim = () => {
+  const FPS = +(P.fps || 20), COUNT_S = 2.4, RUN_S = +(P.run || 11);
+  const { c, ctx } = makeCanvas(W, H);
+  screen.appendChild(c);
+  const sim = simulateRun({ w: W, h: H }, RUN_S, +(P.seed || 7));
+  const t0 = 800000000.0;
+  const MILESTONE_TEXT = { 100: "+5", 200: "+15", 500: "+30", 1000: "+50" };
+  window.animInfo = { frames: Math.round((COUNT_S + RUN_S) * FPS), crashed: sim.crashed,
+    shoots: sim.frames[sim.frames.length - 1].shootsCollected, score: sim.frames[sim.frames.length - 1].score };
+  window.renderFrame = (i) => {
+    const time = i / FPS;
+    ctx.save(); ctx.clearRect(0, 0, W, H);
+    if (time < COUNT_S) {
+      const beat = Math.floor(time / 0.8);
+      renderCountdown(ctx, { w: W, h: H }, 3 - beat, time - beat * 0.8, t0 + time);
+    } else {
+      const rt = time - COUNT_S;
+      const step = Math.min(sim.frames.length - 1, Math.round(rt * 60));
+      const f = sim.frames[step];
+      const floating = [];
+      for (const e of sim.events) {
+        const p = (step - e.step) / 60;
+        if (p < 0 || p >= 1) continue;
+        if (e.kind === "shoot") floating.push({ text: "+" + e.gained * 3, color: PC.greenMint, x: 40 + 12, y: 26, progress: p });
+        else floating.push({ text: MILESTONE_TEXT[e.m], color: PC.greenMint, x: 46, y: 26, progress: p });
+      }
+      renderGame(ctx, { w: W, h: H }, {
+        world: "bambooGrove", distance: f.distance, currentTerraceHeight: 0,
+        dino: { x: f.dino.x, y: f.dino.y, jumping: f.dino.jumping, duck: 0 }, kinAccent: PC.pandaBlack,
+        obstacles: f.obstacles, shoots: f.shoots, terraces: [],
+        score: f.score, shootsCollected: f.shootsCollected, powerCharge: f.powerCharge, powerUpActive: false,
+        bannerOpacity: 0, floating,
+      }, t0 + time);
+    }
+    ctx.restore();
+  };
+  window.renderFrame(0);
+};
+
+// ---------------------------------------------------------------------------------------------
 (async () => {
   await Promise.all(["16px BG-XB", "16px BG-B", "16px DMM", "16px DMM-M", "16px SysSB"].map(f => document.fonts.load(f, "PANDA 0123 ★")));
   await document.fonts.ready;
