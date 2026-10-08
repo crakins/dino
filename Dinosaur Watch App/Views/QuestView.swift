@@ -37,6 +37,26 @@ struct QuestView: View {
             .padding(.top, -30)
             .padding(.bottom, 8)
         }
+        .bottomBar {
+            runButton
+        }
+    }
+
+    private var runButton: some View {
+        Button {
+            WKInterfaceDevice.current().play(.click)
+            onRun()
+        } label: {
+            Text("Run")
+                .font(.heading(size: 11, weight: .heavy))
+                .tracking(0.3)
+                .foregroundColor(PandaColor.ink)
+                .frame(maxWidth: .infinity)
+                .frame(height: 28)
+                .background(PandaColor.green.opacity(BottomBarLayout.fillOpacity))
+                .cornerRadius(10)
+        }
+        .buttonStyle(.plain)
     }
 
     private var header: some View {
@@ -83,26 +103,10 @@ struct QuestView: View {
             }
             .padding(.top, 6)
 
-            HStack {
-                Text("+\(PlayerData.dailyQuestXPReward) XP · +\(PlayerData.dailyQuestCoinReward)")
-                    .font(.numeral(size: 8, weight: .medium))
-                    .foregroundColor(PandaColor.green)
-
-                Spacer()
-
-                if !isComplete {
-                    Button {
-                        WKInterfaceDevice.current().play(.click)
-                        onRun()
-                    } label: {
-                        Text("Run →")
-                            .font(.heading(size: 8.5, weight: .semibold))
-                            .foregroundColor(PandaColor.green)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.top, 6)
+            Text("+\(PlayerData.dailyQuestXPReward) XP · +\(PlayerData.dailyQuestCoinReward)")
+                .font(.numeral(size: 8, weight: .medium))
+                .foregroundColor(PandaColor.green)
+                .padding(.top, 6)
         }
         .padding(8)
         .background(

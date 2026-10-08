@@ -28,6 +28,9 @@ struct GameOverView: View {
         ScrollView {
             innerContent
         }
+        .bottomBar {
+            actionRow
+        }
         .padding(.top, -30)
         .onAppear {
             canRestart = false
@@ -97,30 +100,32 @@ struct GameOverView: View {
                 .lineSpacing(1.5)
                 .padding(.top, 8)
                 .padding(.bottom, 5)
-
-            HStack(spacing: 5) {
-                Button(action: onRestart) {
-                    Text("Retry")
-                        .font(.heading(size: 11, weight: .heavy))
-                        .tracking(0.3)
-                        .foregroundColor(PandaColor.ink)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 28)
-                        .background(PandaColor.green)
-                        .cornerRadius(10)
-                }
-                .buttonStyle(.plain)
-                .disabled(!canRestart)
-                .opacity(canRestart ? 1 : 0.5)
-
-                iconButton(systemName: "house.fill", action: onHome)
-                iconButton(systemName: "cart.fill", action: onShop)
-            }
         }
         .padding(.horizontal, 10)
         .padding(.top, 9)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity)
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 5) {
+            Button(action: onRestart) {
+                Text("Retry")
+                    .font(.heading(size: 11, weight: .heavy))
+                    .tracking(0.3)
+                    .foregroundColor(PandaColor.ink)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28)
+                    .background(PandaColor.green.opacity(BottomBarLayout.fillOpacity))
+                    .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canRestart)
+            .opacity(canRestart ? 1 : 0.5)
+
+            iconButton(systemName: "house.fill", action: onHome)
+            iconButton(systemName: "cart.fill", action: onShop)
+        }
     }
 
     private var streakConsequenceText: String {

@@ -6,7 +6,7 @@ struct MarketView: View {
     let onClose: () -> Void
     var onPlay: (() -> Void)? = nil
 
-    @State private var tab: MarketTab = .worlds
+    @State private var tab: MarketTab = .kin
     @State private var selectedKin: Kin?
     @State private var selectedWorld: World?
 

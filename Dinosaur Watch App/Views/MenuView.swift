@@ -65,14 +65,13 @@ struct MenuView: View {
                 PandaFaceIcon()
                     .frame(width: 22, height: 17)
 
-                HStack(spacing: 3) {
-                    Text("PANDA")
-                        .font(.heading(size: 15, weight: .heavy))
-                        .foregroundColor(PandaColor.white)
-                    Text("PANDA")
-                        .font(.heading(size: 15, weight: .heavy))
-                        .foregroundColor(PandaColor.green)
-                }
+                // Vector wordmark (PandaLogo.svg) — scaled off the screen width so it reads as
+                // the same logo, proportionally, on every watch size.
+                Image("PandaLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: WKInterfaceDevice.current().screenBounds.width * 0.42)
+                    .accessibilityLabel("Panda Panda")
             }
             .padding(.top, 2)
 
@@ -82,18 +81,22 @@ struct MenuView: View {
             streakRow
                 .padding(.top, 3)
 
-            RunButton(action: onStart, height: 32)
-                .padding(.top, 6)
+            // Pins the buttons to the bottom edge, matching the bottom bar on other screens —
+            // larger watches get their extra room as a gap above the buttons, not below them.
+            Spacer(minLength: 6)
 
-            HStack(spacing: 6) {
-                PillButton(title: "Market", dot: unseenUnlocks > 0 ? .filled(PandaColor.greenMint) : nil, height: 25, action: onShop)
-                PillButton(title: "Quest", dot: questProgress >= questTarget ? .filled(PandaColor.green) : .outline(PandaColor.white.opacity(0.35)), height: 25, action: onQuest)
+            VStack(spacing: 4) {
+                RunButton(action: onStart, height: 32)
+
+                HStack(spacing: 6) {
+                    PillButton(title: "Market", dot: unseenUnlocks > 0 ? .filled(PandaColor.greenMint) : nil, height: 25, action: onShop)
+                    PillButton(title: "Quest", dot: questProgress >= questTarget ? .filled(PandaColor.green) : .outline(PandaColor.white.opacity(0.35)), height: 25, action: onQuest)
+                }
             }
-            .padding(.top, 4)
         }
         .padding(.horizontal, 10)
         .padding(.top, -30)
-        .padding(.bottom, 4)
+        .padding(.bottom, BottomBarLayout.bottomPull)
     }
 
     // Level and coins share a single chip, entirely on the left — the system clock owns the

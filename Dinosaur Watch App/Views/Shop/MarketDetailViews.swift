@@ -29,6 +29,9 @@ struct KinDetailView: View {
         ScrollView {
         kinDetailBody(data: data, isOwned: isOwned, isEquipped: isEquipped, hasLevel: hasLevel, hasWorld: hasWorld, canPurchase: canPurchase)
         }
+        .bottomBar {
+            kinActions(data: data, isOwned: isOwned, isEquipped: isEquipped, hasLevel: hasLevel, hasWorld: hasWorld, canPurchase: canPurchase)
+        }
         .padding(.top, -30)
     }
 
@@ -88,44 +91,45 @@ struct KinDetailView: View {
             }
             .padding(.top, 6)
 
-            Spacer(minLength: 4)
-
-            HStack(spacing: 6) {
-                MarketActionButton(
-                    isOwned: isOwned,
-                    isEquipped: isEquipped,
-                    canPurchase: canPurchase,
-                    cost: kin.coinCost,
-                    coins: data.coins,
-                    hasLevel: hasLevel,
-                    requiredLevel: kin.requiredPlayerLevel,
-                    hasRequiredWorld: hasWorld,
-                    requiredWorldName: kin.requiredWorld?.shortName ?? "",
-                    onEquip: { playerDataManager.equip(kin) },
-                    onPurchase: { _ = playerDataManager.purchase(kin) }
-                )
-
-                if isOwned, let onPlay {
-                    Button(action: {
-                        if !isEquipped { playerDataManager.equip(kin) }
-                        onPlay()
-                    }) {
-                        Text("Play")
-                            .font(.heading(size: 12, weight: .heavy))
-                            .foregroundColor(PandaColor.ink)
-                            .frame(width: 54)
-                            .frame(height: 30)
-                            .background(PandaColor.greenMint)
-                            .cornerRadius(10)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
         }
         .padding(.horizontal, 10)
         .padding(.top, 9)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity)
+    }
+
+    private func kinActions(data: PlayerData, isOwned: Bool, isEquipped: Bool, hasLevel: Bool, hasWorld: Bool, canPurchase: Bool) -> some View {
+        HStack(spacing: 6) {
+            MarketActionButton(
+                isOwned: isOwned,
+                isEquipped: isEquipped,
+                canPurchase: canPurchase,
+                cost: kin.coinCost,
+                coins: data.coins,
+                hasLevel: hasLevel,
+                requiredLevel: kin.requiredPlayerLevel,
+                hasRequiredWorld: hasWorld,
+                requiredWorldName: kin.requiredWorld?.shortName ?? "",
+                onEquip: { playerDataManager.equip(kin) },
+                onPurchase: { _ = playerDataManager.purchase(kin) }
+            )
+
+            if isOwned, let onPlay {
+                Button(action: {
+                    if !isEquipped { playerDataManager.equip(kin) }
+                    onPlay()
+                }) {
+                    Text("Play")
+                        .font(.heading(size: 12, weight: .heavy))
+                        .foregroundColor(PandaColor.ink)
+                        .frame(width: 54)
+                        .frame(height: 30)
+                        .background(PandaColor.greenMint.opacity(BottomBarLayout.fillOpacity))
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private func evolutionDot(for stage: Kin, currentlyOwned: Bool) -> some View {
@@ -182,6 +186,9 @@ struct WorldDetailView: View {
         ScrollView {
         worldDetailBody(data: data, isOwned: isOwned, isEquipped: isEquipped, hasLevel: hasLevel, canPurchase: canPurchase)
         }
+        .bottomBar {
+            worldActions(data: data, isOwned: isOwned, isEquipped: isEquipped, hasLevel: hasLevel, canPurchase: canPurchase)
+        }
         .padding(.top, -30)
     }
 
@@ -225,42 +232,43 @@ struct WorldDetailView: View {
             }
             .padding(.top, 6)
 
-            Spacer(minLength: 4)
-
-            HStack(spacing: 6) {
-                MarketActionButton(
-                    isOwned: isOwned,
-                    isEquipped: isEquipped,
-                    canPurchase: canPurchase,
-                    cost: world.coinCost,
-                    coins: data.coins,
-                    hasLevel: hasLevel,
-                    requiredLevel: world.requiredPlayerLevel,
-                    onEquip: { playerDataManager.equip(world) },
-                    onPurchase: { _ = playerDataManager.purchase(world) }
-                )
-
-                if isOwned, let onPlay {
-                    Button(action: {
-                        if !isEquipped { playerDataManager.equip(world) }
-                        onPlay()
-                    }) {
-                        Text("Play")
-                            .font(.heading(size: 12, weight: .heavy))
-                            .foregroundColor(PandaColor.ink)
-                            .frame(width: 54)
-                            .frame(height: 30)
-                            .background(PandaColor.greenMint)
-                            .cornerRadius(10)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
         }
         .padding(.horizontal, 10)
         .padding(.top, 9)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity)
+    }
+
+    private func worldActions(data: PlayerData, isOwned: Bool, isEquipped: Bool, hasLevel: Bool, canPurchase: Bool) -> some View {
+        HStack(spacing: 6) {
+            MarketActionButton(
+                isOwned: isOwned,
+                isEquipped: isEquipped,
+                canPurchase: canPurchase,
+                cost: world.coinCost,
+                coins: data.coins,
+                hasLevel: hasLevel,
+                requiredLevel: world.requiredPlayerLevel,
+                onEquip: { playerDataManager.equip(world) },
+                onPurchase: { _ = playerDataManager.purchase(world) }
+            )
+
+            if isOwned, let onPlay {
+                Button(action: {
+                    if !isEquipped { playerDataManager.equip(world) }
+                    onPlay()
+                }) {
+                    Text("Play")
+                        .font(.heading(size: 12, weight: .heavy))
+                        .foregroundColor(PandaColor.ink)
+                        .frame(width: 54)
+                        .frame(height: 30)
+                        .background(PandaColor.greenMint.opacity(BottomBarLayout.fillOpacity))
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private func tag(_ text: String, color: Color, background: Color) -> some View {
@@ -311,7 +319,7 @@ struct MarketActionButton: View {
                 .padding(.horizontal, 6)
                 .frame(maxWidth: .infinity)
                 .frame(height: 30)
-                .background(backgroundColor)
+                .background(backgroundColor.opacity(BottomBarLayout.fillOpacity))
                 .cornerRadius(10)
             }
             .buttonStyle(.plain)
