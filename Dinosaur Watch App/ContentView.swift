@@ -21,6 +21,41 @@ struct ContentView: View {
     @AppStorage("currentStreak") private var currentStreak = 0
     @AppStorage("lastPlayedDate") private var lastPlayedDate: Double = 0
 
+    /// Debug screenshot staging only — a Kin detail page opened directly, without the Market grid.
+    @State private var screenshotKin: Kin?
+
+    init() {
+        #if DEBUG
+        if let scene = ScreenshotScene.current {
+            let state = GameState()
+            state.phase = .ready
+            switch scene {
+            case .home:
+                break
+            case .quest:
+                _showQuest = State(initialValue: true)
+            case .jadepaw:
+                _screenshotKin = State(initialValue: .jadepaw)
+            case .runEnded:
+                state.phase = .gameOver
+                state.score = ScreenshotScene.runScore
+                state.shootsCollected = ScreenshotScene.runShoots
+                // Lands the run in winter, the 4th season segment.
+                state.distanceTraveled = CGFloat(3 * GameConstants.seasonSegmentMeters * 10)
+                _runDurationSeconds = State(initialValue: ScreenshotScene.runSeconds)
+                _lastGameReward = State(initialValue: RewardCalculator.calculate(
+                    score: ScreenshotScene.runScore,
+                    shootsCollected: ScreenshotScene.runShoots,
+                    streak: 5,
+                    isNewHighScore: false,
+                    lastDailyBonusDate: Date().timeIntervalSince1970
+                ))
+            }
+            _gameState = State(initialValue: state)
+        }
+        #endif
+    }
+
     var body: some View {
         ZStack {
             switch gameState.phase {
@@ -93,6 +128,11 @@ struct ContentView: View {
                         startCountdown()
                     }
                 )
+            }
+
+            if let kin = screenshotKin {
+                KinDetailView(kin: kin, playerDataManager: playerDataManager, onBack: { screenshotKin = nil })
+                    .background(PandaColor.ink.ignoresSafeArea())
             }
         }
         .onChange(of: gameState.phase) { _, newPhase in

@@ -29,6 +29,7 @@ struct KinDetailView: View {
         ScrollView {
         kinDetailBody(data: data, isOwned: isOwned, isEquipped: isEquipped, hasLevel: hasLevel, hasWorld: hasWorld, canPurchase: canPurchase)
         }
+        .screenshotScrollAnchor(y: 0.72)
         .bottomBar {
             kinActions(data: data, isOwned: isOwned, isEquipped: isEquipped, hasLevel: hasLevel, hasWorld: hasWorld, canPurchase: canPurchase)
         }

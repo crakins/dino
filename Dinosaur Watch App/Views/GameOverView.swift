@@ -28,6 +28,7 @@ struct GameOverView: View {
         ScrollView {
             innerContent
         }
+        .screenshotScrollAnchor(y: 0.65)
         .bottomBar {
             actionRow
         }
